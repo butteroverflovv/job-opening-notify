@@ -43,7 +43,8 @@ public final class ArticleReader {
         for(Html.Node n:root.all()){
             if(suppressed(n)||!Set.of("article","section","div","td","main").contains(n.tag))continue;
             String raw=(n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT),token=raw.replaceAll("[-_\\s]","");int score=0;
-            if(token.contains("contextview"))score=800;
+            if(SchoolBoards.seoulBodyCell(n))score=850;
+            else if(token.contains("contextview"))score=800;
             else if(token.contains("bbsvcont")||token.contains("bbsvcn"))score=780;
             else if(token.contains("jobdetailareacon"))score=750;
             else if(raw.contains("recruit_cont_box")&&previousHeading(n).contains("상세요강"))score=750;

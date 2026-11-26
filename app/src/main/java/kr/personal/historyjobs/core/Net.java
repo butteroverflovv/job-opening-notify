@@ -8,6 +8,7 @@ import java.util.regex.*;
 
 public final class Net {
     private Net() {}
+    private static final CookieManager COOKIES=new CookieManager(null,CookiePolicy.ACCEPT_ORIGINAL_SERVER);
     public record Response(byte[] bytes,String mime,String url) {
         public String text(){
             String hint=mime+" "+new String(bytes,0,Math.min(bytes.length,4096),StandardCharsets.ISO_8859_1);
@@ -32,8 +33,10 @@ public final class Net {
             c.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1");
             c.setRequestProperty("Accept",htmlOnly?"text/html,application/xhtml+xml,text/plain;q=0.9":"text/html,application/xhtml+xml,application/pdf,*/*;q=0.8");
             if(referer!=null&&!referer.trim().isEmpty())c.setRequestProperty("Referer",referer);
+            synchronized(COOKIES){for(var header:COOKIES.get(u,Collections.emptyMap()).entrySet())if(!header.getValue().isEmpty())c.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));}
             try{
                 int status=c.getResponseCode();
+                synchronized(COOKIES){COOKIES.put(u,c.getHeaderFields());}
                 if(status>=300&&status<400){String next=Html.resolve(url,c.getHeaderField("Location")==null?"":c.getHeaderField("Location"));if(next.trim().isEmpty()||next.equals(url))throw new IOException("리다이렉트 오류");url=next;continue;}
                 if(status<200||status>=300)throw new IOException("HTTP "+status+" · 사이트 접속 실패");
                 if(htmlOnly&&!ArticleReader.htmlType(Objects.toString(c.getContentType(),"")))throw new IOException("본문 HTML 페이지가 아니에요. 첨부파일은 가져오지 않아요");

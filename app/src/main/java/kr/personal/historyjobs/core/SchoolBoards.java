@@ -52,5 +52,10 @@ public final class SchoolBoards {
         return "";
     }
     public static String pageKey(Source s){return switch(BoardParser.kind(s)){case "SEOUL"->"q_currPage";case "GYEONGGI","SCHOOL_NTT"->"currPage";case "SCHOOL_SEN"->"pageIndex";default->"page";};}
+    public static boolean seoulBodyCell(Html.Node n){
+        if(!n.tag.equals("td")||n.parent==null||!n.parent.tag.equals("tr"))return false;
+        boolean content=false;for(Html.Node c:n.parent.children)if(c.tag.equals("th")&&c.text().equals("내용"))content=true;if(!content)return false;
+        for(Html.Node p=n.parent.parent;p!=null;p=p.parent)if(p.tag.equals("table"))return css(p,"board_type01_tb_readform");return false;
+    }
     public static String securityMessage(Html.Node root){String text=root.text();return text.contains("웹 보안 필터링 시스템이 동작")&&text.contains("차단 정보")?"사이트가 보안 안내 페이지를 반환했어요. 원문 연결 상태를 확인해 주세요.":"";}
 }
