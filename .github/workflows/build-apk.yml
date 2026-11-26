@@ -25,6 +25,9 @@ jobs:
           key: history-jobs-debug-signing-v1-${{ github.repository_id }}
       - name: Test collector and document readers
         run: python3 tools/test_core.py
+      - name: Probe public source boards
+        continue-on-error: true
+        run: python3 tools/probe_sources.py
       - name: Build and lint
         run: |
           chmod +x gradlew
@@ -35,3 +38,12 @@ jobs:
           name: history-jobs-0.1.0-apk
           path: history-jobs-0.1.0.apk
           retention-days: 30
+      - name: Save build and source diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-jobs-diagnostics
+          path: |
+            diagnostics/
+            app/build/reports/lint-results-debug.*
+          retention-days: 7
