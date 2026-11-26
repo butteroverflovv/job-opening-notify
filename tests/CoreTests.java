@@ -14,24 +14,25 @@ public class CoreTests {
     static Source sen=Model.defaults().get(0),goe=Model.defaults().get(1),tokyo=Model.defaults().get(2);
     public static void main(String[] args)throws Exception{
         verdict(Status.MATCH,"가람중학교 역사 기간제교사 채용","","",true);
-        verdict(Status.MATCH,"가람고등학교 기간제교원(역사) 채용 공고","","",true);
-        verdict(Status.MATCH,"가람고등학교 한국사 기간제교사 채용","","",true);
-        verdict(Status.EXCLUDED,"가람중학교 역사 시간강사 채용","","",true);
-        verdict(Status.EXCLUDED,"가람초등학교 기간제교사 채용","역사","",true);
-        verdict(Status.EXCLUDED,"가람중학교 영어 기간제교사 채용","과목: 영어","",true);
-        verdict(Status.MATCH,"기간제교사 채용","가람중학교\n모집 과목: 역사\n기간제교원 1명","",true);
-        verdict(Status.REVIEW,"가람고등학교 기간제교사 채용","","",false);
-        verdict(Status.EXCLUDED,"가람중학교 국어 기간제교사, 역사 시간강사 채용","","",true);
-        verdict(Status.EXCLUDED,"가람중학교 기간제교사(국어), 시간강사(역사)","","",true);
-        verdict(Status.MATCH,"가람중학교 역사 기간제 및 영어 시간강사","","",true);
-        verdict(Status.REVIEW,"역사 교원 채용","기간제교사","",true);
-        verdict(Status.REVIEW,"동경한국학교 역사 기간제교사 채용","","동경한국학교",true);
-        verdict(Status.MATCH,"동경한국학교 역사 기간제교사 채용","중등부 교사 모집","동경한국학교",true);
-        verdict(Status.REVIEW,"교원 채용","가람고등학교\n채용 분야: 역사\n기간제교사","",false);
-        verdict(Status.EXCLUDED,"가람고등학교 영어 기간제교사 채용","학교의 역사와 교육철학을 이해하는 자","",true);
-        verdict(Status.EXCLUDED,"가람중학교 역사교육활동 보조인력 기간제근로자 채용","","",true);
-        verdict(Status.REVIEW,"가람중학교 영어 기간제교사 채용","","",false);
-        Notice hashItem=new Notice();hashItem.title="가람중학교 역사 기간제";hashItem.body="역사 기간제 모집 · 조회수 10";String beforeHash=hashItem.contentHash();hashItem.body="역사 기간제 모집 · 조회수 11";check(beforeHash.equals(hashItem.contentHash()),"view count changes do not produce revised alerts");
+        verdict(Status.MATCH,"가람고등학교 기간제교원(역사) 채용 공고","","",false);
+        verdict(Status.MATCH,"가람중학교 역사 시간강사 채용","","",false);
+        verdict(Status.MATCH,"역사 교원 채용","","",true);
+        verdict(Status.MATCH,"동경한국학교 역사 교원 채용","","동경한국학교",false);
+        verdict(Status.MATCH,"가람초등학교 역사 관련 강사 채용","","",true);
+        verdict(Status.EXCLUDED,"가람고등학교 한국사 기간제교사 채용","","",true);
+        verdict(Status.EXCLUDED,"가람고등학교 세계사 교사 채용","","",true);
+        verdict(Status.EXCLUDED,"가람중학교 영어 기간제교사 채용","모집 과목: 역사","",true);
+        verdict(Status.EXCLUDED,"기간제교사 채용","가람중학교 모집과목: 역사","",false);
+        verdict(Status.EXCLUDED,"가람고등학교 기간제교사 채용","","",false);
+        verdict(Status.EXCLUDED,"역 사 교원 채용","","",true);
+        check(!Classifier.titleMatches(null),"null title excluded");
+        Notice migrated=new Notice();migrated.title="가람중학교 영어 채용";migrated.status=Status.REVIEW;migrated.favorite=true;migrated.read=true;migrated.body="본문에 역사 포함";migrated.attachments.add(new Link("파일","https://a.test/file.hwp"));
+        Classifier.reclassify(migrated);
+        check(migrated.status==Status.EXCLUDED&&migrated.favorite&&migrated.read,"old unrelated review hidden without losing saved flags");
+        migrated.title="가람중학교 역사 채용";migrated.complete=false;Classifier.reclassify(migrated);
+        check(migrated.status==Status.MATCH&&migrated.complete&&migrated.attachments.isEmpty(),"old failed history item becomes normal title match");
+        Notice hashItem=new Notice();hashItem.title="가람중학교 역사 기간제";hashItem.url="https://a.test/job";hashItem.body="본문 1";String beforeHash=hashItem.contentHash();hashItem.body="본문 오류";
+        check(beforeHash.equals(hashItem.contentHash()),"body errors do not produce revised alerts");
         Classifier.Deadline d=Classifier.deadline("접수기간: 2026. 11. 26. ~ 2026. 11. 30. 15:00",LocalDate.of(2026,11,26));
         check(Instant.ofEpochMilli(d.epoch()).equals(Instant.parse("2026-11-30T06:00:00Z")),"deadline KST conversion");
         d=Classifier.deadline("접수기간 2026/12/28 ~ 1/3",LocalDate.of(2026,12,26));
@@ -89,19 +90,23 @@ public class CoreTests {
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
-        long now=Instant.parse("2026-11-26T03:00:00Z").toEpochMilli();
-        Collector c=new Collector((url,max,ref)->{
-            String html=url.contains("BD_selectRecDetail")?"<article><h3>가람중학교 역사 기간제교사 채용</h3><p>역사 기간제교사를 모집합니다.</p><p>접수기간 2026. 11. 26. ~ 2026. 11. 30. 16:00</p></article>":list;
-            return new Net.Response(html.getBytes(StandardCharsets.UTF_8),"text/html; charset=utf-8",url);
-        },(response,file)->"역사 기간제교사");
-        Collector.Result result=c.collect(sen,new HashMap<>(),now);
-        check(result.notices().size()==1&&result.notices().get(0).status==Status.MATCH,"end-to-end fixture collection");
-        Notice old=result.notices().get(0);Map<String,Notice> known=Map.of(old.id,old);
-        Collector failure=new Collector((url,max,ref)->{if(url.contains("BD_selectRecDetail"))throw new IOException("timeout");return new Net.Response(list.getBytes(StandardCharsets.UTF_8),"text/html",url);},(r,f)->"");
-        check(failure.collect(sen,known,now+7*3600000L).notices().isEmpty(),"transient failure preserves previous confirmed item");
-        Collector.Result r=failure.collect(sen,Map.of(),now);
-        check(r.notices().size()==1&&r.notices().get(0).status==Status.REVIEW,"failed detail retained for review");
-        Collector blocked=new Collector((url,max,ref)->new Net.Response("Access Denied".getBytes(StandardCharsets.UTF_8),"text/html",url),(x,f)->"");
+        long now=Instant.parse("2026-11-26T03:00:00Z").toEpochMilli();List<String> requests=new ArrayList<>();
+        Collector collector=new Collector((url,max,ref)->{
+            requests.add(url);if(url.contains("BD_selectRecDetail")||url.endsWith(".hwp"))throw new AssertionError("detail or file request");
+            return new Net.Response(list.getBytes(StandardCharsets.UTF_8),"text/html; charset=utf-8",url);
+        });
+        Collector.Result result=collector.collect(sen,Map.of(),now);
+        check(result.notices().size()==1&&result.notices().get(0).status==Status.MATCH,"title matches collected without detail access");
+        check(requests.stream().noneMatch(x->x.contains("BD_selectRecDetail")),"no body or attachment network requests");
+        String mixed="<a href='/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=11'><h4 class='list_title'>가람중학교 영어 교원 채용</h4><p>학교의 역사와 전통</p></a><a href='/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=12'><h4 class='list_title'>가람중학교 역사 채용</h4><p>접수기간 2026/11/26 ~ 2026/11/30</p><p>채용기간 2026/12/01 ~ 2027/02/28</p></a>";
+        Collector filtered=new Collector((url,max,ref)->new Net.Response(mixed.getBytes(StandardCharsets.UTF_8),"text/html",url));
+        Collector.Result selected=filtered.collect(sen,Map.of(),now);
+        check(selected.listed()==2&&selected.checked()==1&&selected.notices().size()==1,"history only in card metadata does not match English title");
+        check(selected.notices().get(0).deadlineLabel.startsWith("2026-11-30"),"deadline from list excludes employment end date");
+        Notice old=result.notices().get(0);String renamed="<a href='/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=123456'>가람중학교 영어 교원 채용</a>";
+        Collector renamedCollector=new Collector((url,max,ref)->new Net.Response(renamed.getBytes(StandardCharsets.UTF_8),"text/html",url));
+        check(renamedCollector.collect(sen,Map.of(old.id,old),now).notices().get(0).status==Status.EXCLUDED,"renaming history title to English removes previous match");
+        Collector blocked=new Collector((url,max,ref)->new Net.Response("Access Denied".getBytes(StandardCharsets.UTF_8),"text/html",url));
         try{blocked.collect(sen,Map.of(),now);throw new AssertionError("blocked list silently accepted");}catch(IllegalStateException expected){check(true,"blocked list is not an empty success");}
     }
     static byte[] zip(String xml)throws IOException{ByteArrayOutputStream b=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(b)){z.putNextEntry(new ZipEntry("Contents/section0.xml"));z.write(xml.getBytes(StandardCharsets.UTF_8));z.closeEntry();}return b.toByteArray();}

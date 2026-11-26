@@ -17,18 +17,17 @@ public final class Model {
             s.enabled=enabled;s.lastAttempt=lastAttempt;s.lastSuccess=lastSuccess;s.message=message;return s;
         }
     }
-    public record Link(String title, String url) {}
+    public record Link(String title, String url, String summary) {
+        public Link(String title,String url){this(title,url,"");}
+    }
     public static class Notice {
         public String id="", sourceId="", sourceName="", url="", title="", school="", region="", body="", reason="", fingerprint="", deadlineLabel="", published="";
         public Status status=Status.REVIEW;
         public List<Link> attachments=new ArrayList<>();
         public long deadline=0, firstSeen=0, lastSeen=0;
         public boolean favorite=false, read=false, complete=false;
-        public String contentHash() {
-            StringBuilder b=new StringBuilder(title).append('|').append(body.replaceAll("조회\\s*(?:수)?\\s*[:：|]?\\s*\\d+", "")).append('|').append(deadlineLabel).append('|').append(status);
-            attachments.forEach(a->b.append('|').append(a.title()).append('|').append(a.url()));
-            return hash(b.toString());
-        }
+        public String contentHash() { return hash(title+"|"+url); }
+
     }
     public static String hash(String s) {
         try { byte[] h=MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));

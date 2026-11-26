@@ -6,9 +6,6 @@ import android.os.Build;
 import android.content.pm.PackageManager;
 import kr.personal.historyjobs.core.*;
 import static kr.personal.historyjobs.core.Model.*;
-import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
-import com.tom_roush.pdfbox.pdmodel.PDDocument;
-import com.tom_roush.pdfbox.text.PDFTextStripper;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -21,17 +18,7 @@ public final class SyncEngine {
         if(!LOCK.tryLock())return true;
         Context app=c.getApplicationContext();Store store=Store.get(app);boolean ok=true;
         try{
-            PDFBoxResourceLoader.init(app);
-            Collector collector=new Collector(Net::get,(response,file)->{
-                byte[] b=response.bytes();
-                if(b.length>4&&b[0]=='%'&&b[1]=='P'&&b[2]=='D'&&b[3]=='F'){
-                    try(PDDocument doc=PDDocument.load(b)){
-                        if(doc.getNumberOfPages()>40)throw new IllegalStateException("40쪽 초과 PDF는 원문 확인 필요");
-                        PDFTextStripper strip=new PDFTextStripper();return strip.getText(doc);
-                    }
-                }
-                return HanText.read(b);
-            });
+            Collector collector=new Collector(Net::get);
             for(Source source:store.sources()){
                 if(Thread.currentThread().isInterrupted())return false;
                 if(!source.enabled)continue;
@@ -39,7 +26,7 @@ public final class SyncEngine {
                 try{
                     Collector.Result result=collector.collect(source,store.notices(),now);
                     store.merge(source,result.notices());
-                    String summary=(result.partial()?"일부 확인":"확인 완료")+" · 목록 "+result.listed()+"건 / 본문 "+result.checked()+"건";
+                    String summary=(result.partial()?"일부 확인":"확인 완료")+" · 목록 "+result.listed()+"건 / 역사 제목 "+result.checked()+"건";
                     if(!result.errors().isEmpty())summary+="\n"+String.join("\n",result.errors());
                     store.sourceResult(source,summary,true,now);
                 }catch(Exception e){ok=false;store.sourceResult(source,"확인 실패 · "+Collector.shortError(e),false,now);}
@@ -52,23 +39,23 @@ public final class SyncEngine {
     public static void postPending(Context c,Store store){
         if(!c.getSharedPreferences("settings",0).getBoolean("alerts",true))return;
         NotificationManager manager=c.getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel("jobs","역사 기간제 공고",NotificationManager.IMPORTANCE_DEFAULT));
+        manager.createNotificationChannel(new NotificationChannel("jobs","역사 제목 공고",NotificationManager.IMPORTANCE_DEFAULT));
         if(Build.VERSION.SDK_INT>=33&&c.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
         if(!manager.areNotificationsEnabled())return;
         android.content.SharedPreferences sent=c.getSharedPreferences("notified",0);
         Set<String> active=new HashSet<>();for(Source s:store.sources())if(s.enabled)active.add(s.id);
         List<Notice> matches=new ArrayList<>();long now=System.currentTimeMillis();
-        for(Notice n:store.notices().values())if(active.contains(n.sourceId)&&n.status==Status.MATCH&&!n.read&&(n.deadline==0||n.deadline>=now)&&!n.fingerprint.equals(sent.getString(n.id,"")))matches.add(n);
+        for(Notice n:store.notices().values())if(active.contains(n.sourceId)&&n.status==Status.MATCH&&Classifier.titleMatches(n.title)&&!n.read&&(n.deadline==0||n.deadline>=now)&&!n.fingerprint.equals(sent.getString(n.id,"")))matches.add(n);
         if(matches.isEmpty())return;
         matches.sort(Comparator.comparingLong((Notice n)->n.firstSeen).reversed());
         StringBuilder detail=new StringBuilder();for(Notice n:matches.subList(0,Math.min(8,matches.size())))detail.append("• ").append(n.title).append('\n');
         Intent intent=new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent open=PendingIntent.getActivity(c,0,intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        Notification n=new Notification.Builder(c,"jobs").setSmallIcon(R.drawable.ic_book).setContentTitle("역사 기간제 공고 "+matches.size()+"건").setContentText(matches.get(0).title).setStyle(new Notification.BigTextStyle().bigText(detail.toString())).setContentIntent(open).setAutoCancel(true).build();
+        Notification n=new Notification.Builder(c,"jobs").setSmallIcon(R.drawable.ic_book).setContentTitle("역사 제목 공고 "+matches.size()+"건").setContentText(matches.get(0).title).setStyle(new Notification.BigTextStyle().bigText(detail.toString())).setContentIntent(open).setAutoCancel(true).build();
         try{manager.notify(100,n);android.content.SharedPreferences.Editor edit=sent.edit();for(Notice x:matches)edit.putString(x.id,x.fingerprint);edit.apply();}catch(SecurityException ignored){}
     }
     public static void testNotification(Context c){
-        NotificationManager nm=c.getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("jobs","역사 기간제 공고",NotificationManager.IMPORTANCE_DEFAULT));
+        NotificationManager nm=c.getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("jobs","역사 제목 공고",NotificationManager.IMPORTANCE_DEFAULT));
         if(Build.VERSION.SDK_INT>=33&&c.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
         nm.notify(101,new Notification.Builder(c,"jobs").setSmallIcon(R.drawable.ic_book).setContentTitle("역사 채용노트 · 테스트 알림").setContentText("앱 알림이 켜져 있어요.").setAutoCancel(true).build());
     }
