@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);screen=col();scroll.addView(screen);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(!store.warning().trim().isEmpty())screen.addView(text(store.warning(),14,AMBER));
         if(tab==0)noticesScreen();else if(tab==1)sourcesScreen();else settingsScreen();
-        TextView footer=text("개인용 · 0.1.2",11,MUTED);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(8),0,dp(8));root.addView(footer);
+        TextView footer=text("개인용 · 0.1.3",11,MUTED);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(8),0,dp(8));root.addView(footer);
     }
     private void noticesScreen(){
         LinearLayout intro=card(screen);intro.addView(bold("제목에 ‘역사’가 있는 공고",17,INK));space(intro,5);
@@ -151,5 +151,5 @@ public class MainActivity extends Activity {
     private void open(String raw){String safe=Html.resolve(raw,raw);if(safe.trim().isEmpty()){toast("열 수 없는 주소예요");return;}try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(safe)));}catch(Exception e){toast("주소를 열 앱이 없어요");}}
     private String date(long t){return Instant.ofEpochMilli(t).atZone(Classifier.KST).format(DateTimeFormatter.ofPattern("MM.dd HH:mm",Locale.KOREA));}
     private void toast(String msg){Toast.makeText(this,msg,Toast.LENGTH_LONG).show();}
-    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.2\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
+    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.3\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
 }
