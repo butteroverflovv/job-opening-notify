@@ -1,0 +1,21 @@
+name: Tokyo public board access probe
+on:
+  push:
+    branches: [fix/tokyo-browser-session]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compare direct and browser-session access
+        run: |
+          mkdir -p /tmp/tokyo-probe-classes
+          javac -encoding UTF-8 -d /tmp/tokyo-probe-classes app/src/main/java/kr/personal/historyjobs/core/*.java tools/TokyoAccessProbe.java
+          java -cp /tmp/tokyo-probe-classes TokyoAccessProbe
