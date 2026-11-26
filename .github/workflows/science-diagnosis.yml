@@ -1,0 +1,24 @@
+name: Science school public board diagnosis
+on:
+  push:
+    branches: [fix/science-school-boards]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Save public HTML and referenced school scripts
+        run: python3 tools/probe_science_schools.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: science-school-html
+          path: science-diagnostics/
+          retention-days: 7
