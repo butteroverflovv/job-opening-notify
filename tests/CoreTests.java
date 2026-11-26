@@ -50,6 +50,13 @@ public class CoreTests {
         check(BoardParser.listing(sen,sen.url,"<a href='?q_CurrPage=2' onclick='opMovePage(2);return false;'>2<span>페이지 이동</span></a>").pages().stream().anyMatch(x->x.contains("q_currPage=2")&&x.contains("q_srchJob=")),"Seoul pagination retains job filters");
         check(BoardParser.listing(goe,goe.url,"<a href=\"javascript:goView('67178')\"><div class='cont_top'>가람중학교 조회수 1</div><p class='cont_tit'>마감임박 역사 기간제 채용</p></a>").items().get(0).title().equals("가람중학교 역사 기간제 채용"),"stable title from real card structure");
         check(BoardParser.listing(tokyo,tokyo.url,"<h1>사용제약에 따른 안내</h1>").warning().contains("사용제약"),"Tokyo restriction page reported explicitly");
+        check(ArrayLiteral.posts("var Posts=[alert(1)];").isEmpty(),"legacy data never executes JavaScript");
+        String legacy="<script>var Posts=[[],[[[405,\"656\",0,0],\":\",\"/front_notice.brd/_656.405.hash/?shell=/index.shell:225\",\"\",\"body\"],[\"\",\"\",0],[\"2026/11/19\",\"11:49:30\",4],[],6252,\"중고등부 역사 기간제 채용 공고\",\"\"]];</script>";
+        check(BoardParser.listing(tokyo,tokyo.url,legacy).items().size()==1,"Tokyo legacy array recruitment records");
+        check(BoardParser.listing(tokyo,tokyo.url,"<a href='/front_notice.brd/02..abc?shell=/index.shell:225'>02</a>").pages().size()==1,"Tokyo path pagination");
+        check(!Html.resolve(tokyo.url,"/front_notice.brd/_656.405.hash/[공고문]%20채용.hwpx").isEmpty(),"attachment brackets in legacy URLs");
+        check(BoardParser.detail("https://www.goe.go.kr/","<h3>역사 기간제 채용</h3><button onclick=\"previewAjax('https://www.goe.go.kr/file.hwp','공고.hwp')\">미리보기</button>","fallback").attachments().size()==1,"Gyeonggi preview URL attachment extraction");
+        check(BoardParser.detail("https://work.sen.go.kr/","<h2>채용공고</h2><h3 class='job-opening-modal-tit-area__tit'>가람중학교 역사 기간제 채용</h3>","fallback").title().contains("가람중학교"),"Seoul title excludes generic navigation heading");
         String th="<a href='/front_notice.brd?shell=/index.shell:225&amp;mode=view&amp;num=301'>중등부 역사 기간제교사 채용</a>";
         check(BoardParser.listing(tokyo,tokyo.url,th).items().size()==1,"Tokyo ordinary board links");
         check(!BoardParser.listing(goe,goe.url,"<html>Access Denied</html>").warning().isEmpty(),"unrecognized board must fail visibly");

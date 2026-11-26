@@ -62,7 +62,7 @@ public final class Html {
     }
     public static String resolve(String base,String raw){
         if(raw==null||raw.trim().isEmpty())return "";
-        try{URI u=URI.create(base).resolve(decode(raw).trim().replace(" ","%20"));if(!Set.of("https","http").contains(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null)return "";return u.toString().split("#",2)[0];}catch(Exception e){return "";}
+        try{URI u=URI.create(base).resolve(decode(raw).trim().replace(" ","%20").replace("[","%5B").replace("]","%5D").replace("|","%7C"));if(!Set.of("https","http").contains(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null)return "";return u.toString().split("#",2)[0];}catch(Exception e){return "";}
     }
     public static boolean sameHost(String a,String b){try{return Objects.equals(URI.create(a).getHost(),URI.create(b).getHost());}catch(Exception e){return false;}}
 }

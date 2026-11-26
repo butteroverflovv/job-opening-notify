@@ -44,6 +44,10 @@ public final class BoardParser {
                 if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=kind(source).equals("SEOUL")?"q_currPage":kind(source).equals("GYEONGGI")?"currPage":"page";pages.add(query(page,key,String.valueOf(p)));}}
             }
         }
+        if(kind(source).equals("TOKYO")){
+            for(Link link:TokyoBoard.links(page,html,source.schoolHint))links.putIfAbsent(link.url(),link);
+            for(Html.Node node:root.all()){String u=Html.resolve(page,node.attr("href"));if(u.matches(".*front_notice\\.brd/0\\d+\\.\\.[^/?]+(?:\\?.*)?"))pages.add(u);}
+        }
         String body=root.text();boolean empty=body.matches("(?s).*(?:등록된\\s*(?:게시물|공고|글|자료)(?:이|가)?\\s*없|검색(?:된|결과| 결과).*없|조회된.*없|검색건수\\s*0\\s*건).*" );
         if(body.contains("사용제약에 따른 안내"))return new Listing(List.of(),List.of(),false,"사이트에서 사용제약 안내를 반환했어요. 원문 주소·접근 상태를 확인해 주세요.");
         String warn=links.isEmpty()&&!empty?"공고 링크를 해석하지 못했어요. 게시판 구조 또는 접근 제한을 확인해 주세요.":"";
@@ -81,12 +85,16 @@ public final class BoardParser {
         };
     }
     public static Detail detail(String url,String html,String fallback){
+        if(url.contains("tokos.ed.jp")){Detail legacy=TokyoBoard.detail(url,html,fallback);if(legacy!=null)return legacy;}
         Html.Node root=Html.parse(html),chosen=null;
         int best=-99999;
         for(Html.Node n:root.all()){
-            if(!Set.of("article","section","div","td","main","body").contains(n.tag))continue;
+            if(!Set.of("article","section","div","td","main","body","form").contains(n.tag))continue;
             String token=(n.attr("class")+" "+n.attr("id")).toLowerCase(Locale.ROOT);
             int score=0;
+            if(n.attr("class").contains("recruit_sub_wrap"))score+=500;
+            if(n.attr("id").equals("pbancInfoForm"))score+=450;
+            if(n.attr("id").equals("contents")&&token.contains("job-opening"))score+=400;
             if(token.matches(".*(?:board.?view|bbs.?view|view.?con|view.?cont|ntt.?cn|detail.?con|board.?con|recruit.?view).*"))score+=150;
             if(n.tag.equals("article"))score+=70;
             if(n.tag.equals("main"))score+=40;
@@ -98,12 +106,16 @@ public final class BoardParser {
         }
         if(chosen==null)chosen=root;
         String title="";
-        for(Html.Node n:root.all())if(Set.of("h1","h2","h3","h4").contains(n.tag)&&n.text().length()<300&&(n.text().contains("채용")||n.text().contains("모집"))){title=n.text();break;}
+        for(Html.Node n:root.all())if(n.attr("class").contains("job-opening-modal-tit-area__tit")){title=n.text();break;}
+        for(Html.Node n:root.all())if(title.isEmpty()&&Set.of("h1","h2","h3","h4").contains(n.tag)&&!n.text().matches("채용공고|채용조건|상세요강|채용방법.*")&&n.text().length()<300&&(n.text().contains("채용")||n.text().contains("모집"))){title=n.text();break;}
         if(title.trim().isEmpty())title=fallback;
         LinkedHashMap<String,Link> files=new LinkedHashMap<>();List<String> frames=new ArrayList<>();
         for(Html.Node n:root.all()){
             if(n.tag.equals("iframe")){String u=Html.resolve(url,n.attr("src"));if(Html.sameHost(url,u))frames.add(u);}
             String u=Html.resolve(url,n.attr("href"));String txt=n.text();
+            if(isAttachment(n.attr("title")))txt=n.attr("title");
+            Matcher preview=Pattern.compile("previewAjax\\(\\s*['\"]([^'\"]+)['\"]\\s*,\\s*['\"]([^'\"]+)['\"]").matcher(n.attr("onclick"));
+            if(preview.find()){String fileUrl=Html.resolve(url,preview.group(1));if(!fileUrl.isEmpty()&&isAttachment(fileUrl))files.put(fileUrl,new Link(preview.group(2),fileUrl));}
             if(!u.trim().isEmpty()&&(isAttachment(u)||isAttachment(txt))){if(files.size()<10)files.put(u,new Link(txt.trim().isEmpty()?"첨부파일":txt,u));}
         }
         String body=chosen.text();if(body.length()>120_000)body=body.substring(0,120_000);

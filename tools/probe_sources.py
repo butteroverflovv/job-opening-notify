@@ -8,6 +8,7 @@ urls = {
     'gyeonggi': 'https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancList.do?mi=10502',
     'seoul-detail': 'https://work.sen.go.kr/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=82380',
     'gyeonggi-detail': 'https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancInfoView.do?mi=10502&pbancSn=67178',
+    'tokyo-detail': 'http://www.tokos.ed.jp/front_notice.brd/_656.405.2dd1fd3d/?shell=/index.shell:225',
     'tokyo-menu': 'http://www.tokos.ed.jp/menu_cache.js',
     'tokyo': 'http://www.tokos.ed.jp/front_notice.brd?shell=/index.shell:225',
 }
