@@ -87,6 +87,8 @@ public class CoreTests {
         Net.Response euc=new Net.Response("역사".getBytes(Charset.forName("EUC-KR")),"text/html; charset=euc-kr","https://a.test/");
         check(euc.text().equals("역사"),"legacy Korean charset");
         collectorTests(sh);
+        expandedSelectionTests();
+        articleTests();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
@@ -108,6 +110,61 @@ public class CoreTests {
         check(renamedCollector.collect(sen,Map.of(old.id,old),now).notices().get(0).status==Status.EXCLUDED,"renaming history title to English removes previous match");
         Collector blocked=new Collector((url,max,ref)->new Net.Response("Access Denied".getBytes(StandardCharsets.UTF_8),"text/html",url));
         try{blocked.collect(sen,Map.of(),now);throw new AssertionError("blocked list silently accepted");}catch(IllegalStateException expected){check(true,"blocked list is not an empty success");}
+    }
+    static void expandedSelectionTests()throws Exception{
+        Source school=Model.source("school","추가한 학교","https://school.example.org/list","AUTO","경기","");
+        for(String title:List.of("2027학년도 교원 채용 공고","동경한국학교 교직원채용 공고","기간제교원  채용 공고","교직원\u00a0채용 공고")){
+            check(Classifier.titleMatches(school,title),"school broad title accepted: "+title);
+            check(!Classifier.titleMatches(sen,title),"Seoul stays history-only: "+title);
+            check(!Classifier.titleMatches(goe,title),"Gyeonggi stays history-only: "+title);
+        }
+        check(Classifier.titleMatches(tokyo,"동경한국학교 교원 채용 공고"),"Tokyo broadened automatically");
+        check(Classifier.titleMatches(school,"역사 채용"),"school history match retained");
+        check(!Classifier.titleMatches(school,"학교 축제 안내"),"school unrelated title excluded");
+        check(Classifier.titleMatches("교원 채용","https://school.goe.go.kr/list"),"school subdomain is not central recruitment portal");
+        check(Classifier.titleMatches("교원 채용","https://school.example.org/list?next=work.sen.go.kr"),"policy uses parsed host, not substring");
+        Source central=sen.copy();central.kind="GENERIC";check(!Classifier.titleMatches(central,"교원 채용"),"central URL rule independent of adapter override");
+        String list="<a href='/view.do?nttSn=1'>2027 교원 채용</a><a href='/view.do?nttSn=2'>2027 교직원 채용</a><a href='/view.do?nttSn=3'>행사 안내</a>";
+        List<String> requests=new ArrayList<>();Collector c=new Collector((url,max,ref)->{requests.add(url);return response(url,list);});
+        Collector.Result result=c.collect(school,Map.of(),System.currentTimeMillis());
+        check(result.notices().size()==2&&result.checked()==2&&requests.size()==1,"added school collects broad titles with list request only");
+        Notice n=result.notices().get(0);check(n.sourceUrl.equals(school.url)&&Classifier.matches(n),"source policy snapshot carried into notice");
+        n.favorite=true;n.read=true;n.body="legacy body and attachment analysis";Classifier.reclassify(n);
+        check(n.status==Status.MATCH&&n.body.isEmpty()&&n.favorite&&n.read,"broad migration removes legacy body, preserves flags");
+        n.body="본문을 읽었어요";n.bodyFetchedAt=1;String hash=n.contentHash();Classifier.reclassify(n);
+        check(n.body.equals("본문을 읽었어요")&&n.contentHash().equals(hash),"new body cache retained without changing notification fingerprint");
+        n.sourceUrl=goe.url;Classifier.reclassify(n);check(n.status==Status.EXCLUDED,"same broad title excluded on central source");
+    }
+    static Net.Response response(String url,String html){return new Net.Response(html.getBytes(StandardCharsets.UTF_8),"text/html; charset=utf-8",url);}
+    static void articleTests()throws Exception{
+        String base="https://school.example.org/view.do?nttSn=1";
+        String html="<nav>메뉴 정보</nav><article><p>공고 본문입니다. 교원 채용 과목과 근무 조건은 본문 내용 그대로 보여줍니다.</p><table><tr><td>모집 분야</td><td>역사</td></tr></table><div class='attachments'><a href='/file.hwp'>첨부파일 공고문.hwp</a></div><a href='/file.pdf'>첨부 문서</a><script>실행 금지</script><p style='display: none'>숨김 정보</p></article><aside>다른 채용 공고</aside>";
+        List<String> calls=new ArrayList<>();ArticleReader reader=new ArticleReader((url,max,ref)->{calls.add(url);return response(url,html);});
+        ArticleReader.Article a=reader.read(base);
+        check(a.body().contains("공고 본문")&&a.body().contains("모집 분야 | 역사"),"article body and table text readable");
+        check(!a.body().contains("첨부 문서")&&!a.body().contains("공고문.hwp")&&!a.body().contains("실행 금지")&&!a.body().contains("숨김 정보")&&!a.body().contains("메뉴 정보"),"files, scripts, hidden elements and navigation removed");
+        check(calls.size()==1&&calls.get(0).equals(base),"article opening makes HTML request only");
+        String seoul="<div class='job-opening-modal'><h3>포털 제목</h3><div class='job-detail-area__con'><p>서울 원문 본문</p></div><div class='job-detail-area__row'>참고파일.hwp</div></div>";
+        check(ArticleReader.parse(sen.url,seoul).body().equals("서울 원문 본문"),"Seoul selects body excluding reference files");
+        String gyeonggi="<div class='contents goeAttach'><div class='recruit_sub_wrap'><h4>근무지역</h4><div class='recruit_cont_box3'>지도와 주소</div><h4>상세요강</h4><div class='recruit_cont_box3'><p>경기 원문 본문</p></div><h4>유의사항</h4><div class='recruit_cont_box3'>다른 영역</div></div></div>";
+        check(ArticleReader.parse(goe.url,gyeonggi).body().equals("경기 원문 본문"),"Gyeonggi chooses detailed description, not map or benefits");
+        check(ArticleReader.parse(tokyo.url,"<div class='context_view'>동경학교 교원 채용 공고 본문입니다.</div><script>var PostFiles=['file.hwp'];</script>").body().startsWith("동경학교"),"Tokyo own body independent of attachment arrays");
+        String parent="<article><iframe src='/content/body'></iframe><iframe src='/viewer?file=a.pdf'></iframe><iframe src='https://outside.test/content'></iframe></article>";
+        calls.clear();ArticleReader framed=new ArticleReader((url,max,ref)->{calls.add(url);return response(url,url.equals(base)?parent:"<article>본문 프레임입니다. 해당 프레임의 채용 내용을 앱 안에서 읽을 수 있어요.</article>");});
+        check(framed.read(base).body().contains("본문 프레임")&&calls.size()==2&&calls.get(1).endsWith("/content/body"),"same-host body frame allowed; viewers and external frames not fetched");
+        calls.clear();ArticleReader linked=new ArticleReader((url,max,ref)->{calls.add(url);return response(url,"<article><p>파일은 원문에서 확인</p><iframe src='/previewAjax?file=a.hwp'></iframe><a href='/download/1'>다운로드</a></article>");});
+        check(linked.read(base).body().equals("파일은 원문에서 확인")&&calls.size()==1,"document viewers never requested");
+        ArticleReader binary=new ArticleReader((url,max,ref)->new Net.Response(new byte[]{1,2},"application/pdf",url));
+        try{binary.read(base);throw new AssertionError("binary accepted");}catch(IOException expected){check(true,"binary response rejected");}
+        final int[] count={0};ArticleReader file=new ArticleReader((url,max,ref)->{count[0]++;return response(url,html);});
+        try{file.read("https://school.example.org/file.hwp");throw new AssertionError("attachment requested");}catch(IOException expected){check(count[0]==0,"direct file URL blocked before transport");}
+        ArticleReader failed=new ArticleReader((url,max,ref)->{throw new IOException("offline");});
+        try{failed.read(base);throw new AssertionError("offline accepted");}catch(IOException expected){check(true,"article network failure reported");}
+        try{ArticleReader.parse(base,"<h1>사용제약에 따른 안내</h1>");throw new AssertionError("blocked content accepted");}catch(IOException expected){check(true,"body restriction page reported");}
+        ArticleReader image=new ArticleReader((url,max,ref)->response(url,"<article><img src='/poster.png'></article>"));
+        check(image.read(base).body().contains("이미지"),"image-only article clearly directs to original without fetching images");
+        ArticleReader unknown=new ArticleReader((url,max,ref)->response(url,"<body>홈페이지 메뉴와 로그인만 있어요.</body>"));
+        try{unknown.read(base);throw new AssertionError("menu accepted as article");}catch(IOException expected){check(true,"unrecognized body fails instead of showing whole site");}
     }
     static byte[] zip(String xml)throws IOException{ByteArrayOutputStream b=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(b)){z.putNextEntry(new ZipEntry("Contents/section0.xml"));z.write(xml.getBytes(StandardCharsets.UTF_8));z.closeEntry();}return b.toByteArray();}
     static void put(byte[] b,int p,int value){ByteBuffer.wrap(b,p,4).order(ByteOrder.LITTLE_ENDIAN).putInt(value);}

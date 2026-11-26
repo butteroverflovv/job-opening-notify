@@ -21,10 +21,10 @@ public final class Model {
         public Link(String title,String url){this(title,url,"");}
     }
     public static class Notice {
-        public String id="", sourceId="", sourceName="", url="", title="", school="", region="", body="", reason="", fingerprint="", deadlineLabel="", published="";
+        public String id="", sourceId="", sourceName="", sourceUrl="", url="", title="", school="", region="", body="", reason="", fingerprint="", deadlineLabel="", published="";
         public Status status=Status.REVIEW;
         public List<Link> attachments=new ArrayList<>();
-        public long deadline=0, firstSeen=0, lastSeen=0;
+        public long deadline=0, firstSeen=0, lastSeen=0, bodyFetchedAt=0;
         public boolean favorite=false, read=false, complete=false;
         public String contentHash() { return hash(title+"|"+url); }
 

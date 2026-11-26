@@ -9,7 +9,19 @@ public final class Classifier {
     private Classifier() {}
     public static final ZoneId KST=ZoneId.of("Asia/Seoul");
     private static final Pattern SCHOOL=Pattern.compile("[가-힣A-Za-z·]{2,25}(?:중·고등학교|중고등학교|고등학교|중학교|초등학교)");
-    public static final String TITLE_NOTE="공고 제목에 ‘역사’가 있어 수집했어요.\n\n학교급·기간제 여부·지원 자격·정확한 마감 시각은 원문에서 확인해 주세요. 본문과 첨부파일은 자동으로 읽지 않아요.";
+    public static boolean educationBoard(String url){
+        try{java.net.URI uri=java.net.URI.create(url);String host=Objects.toString(uri.getHost(),"").toLowerCase(Locale.ROOT);String path=Objects.toString(uri.getPath(),"");
+            return host.equals("work.sen.go.kr")||((host.equals("goe.go.kr")||host.equals("www.goe.go.kr"))&&(path.equals("/recruit")||path.startsWith("/recruit/")));
+        }catch(Exception ignored){return false;}
+    }
+    public static boolean titleMatches(String title,String boardUrl){
+        if(titleMatches(title))return true;
+        if(title==null||boardUrl==null||boardUrl.isEmpty()||educationBoard(boardUrl))return false;
+        String compact=title.replaceAll("[\\s\\p{Z}\\u200B]+","");
+        return compact.contains("교원채용")||compact.contains("교직원채용");
+    }
+    public static boolean titleMatches(Source source,String title){return titleMatches(title,source.url);}
+    public static boolean matches(Notice n){return titleMatches(n.title,n.sourceUrl.isEmpty()?n.url:n.sourceUrl);}
     public record Verdict(Status status,String reason,String school) {}
     public static boolean titleMatches(String title){return title!=null&&title.contains("역사");}
     public static Verdict classify(String title,String body,String hint,boolean complete){
@@ -19,8 +31,11 @@ public final class Classifier {
     }
     /** Reapply current selection to saved data without relying on old body/attachment results. */
     public static void reclassify(Notice n){
-        Verdict v=classify(n.title,"",n.school,true);n.status=v.status();n.reason=v.reason();n.school=v.school();
-        n.body=TITLE_NOTE;n.attachments.clear();n.complete=true;n.fingerprint=n.contentHash();
+        String name=school(n.title);if(!name.isEmpty())n.school=name;
+        n.status=matches(n)?Status.MATCH:Status.EXCLUDED;
+        n.reason=n.status==Status.EXCLUDED?"게시판의 제목 조건과 일치하지 않아 제외":titleMatches(n.title)?"제목에 ‘역사’ 포함":"학교 게시판의 교원·교직원 채용 공고";
+        if(n.bodyFetchedAt<=0)n.body="";
+        n.attachments.clear();n.complete=true;n.fingerprint=n.contentHash();
     }
     public static String school(String text){Matcher m=SCHOOL.matcher(text);return m.find()?m.group():text.contains("동경한국학교")?"동경한국학교":"";}
     public static void enrich(Notice n,String hint,boolean complete){

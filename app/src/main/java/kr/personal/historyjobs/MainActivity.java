@@ -26,6 +26,7 @@ import static kr.personal.historyjobs.core.Model.*;
 public class MainActivity extends Activity {
     private static final int BG=Ui.WHITE,INK=Ui.INK,ACCENT=Ui.BROWN,MUTED=Ui.MUTED,LINE=Ui.LINE,AMBER=Ui.NEGATIVE;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
+    private final ExecutorService articleExecutor=Executors.newFixedThreadPool(2);private Dialog articleDialog;
     private Store store;private LinearLayout root,screen,noticeList;private TextView progress;private LinearLayout bottomNavigation;
     private int tab=0,filter=0;private String query="";private boolean closed=false;private volatile String running="";
     private android.content.SharedPreferences prefs;
@@ -35,13 +36,13 @@ public class MainActivity extends Activity {
         if(state!=null){tab=state.getInt("tab");filter=state.getInt("filter");query=state.getString("query","");closed=state.getBoolean("closed");}
         if(filter==1)filter=0;CheckWorker.schedule(this);render();
         if(Build.VERSION.SDK_INT>=33&&!prefs.getBoolean("permissionAsked",false)){
-            new AlertDialog.Builder(this).setTitle("새 역사 공고를 알려드릴게요").setMessage("공고 목록은 권한 없이도 볼 수 있어요. 새 공고 알림을 받으려면 다음 화면에서 알림을 허용해 주세요.").setPositiveButton("알림 설정",(d,w)->requestAlerts()).setNegativeButton("나중에",(d,w)->prefs.edit().putBoolean("permissionAsked",true).apply()).show();
+            new AlertDialog.Builder(this).setTitle("새 채용공고를 알려드릴게요").setMessage("공고 목록은 권한 없이도 볼 수 있어요. 새 공고 알림을 받으려면 다음 화면에서 알림을 허용해 주세요.").setPositiveButton("알림 설정",(d,w)->requestAlerts()).setNegativeButton("나중에",(d,w)->prefs.edit().putBoolean("permissionAsked",true).apply()).show();
         }
     }
     @Override protected void onSaveInstanceState(Bundle b){super.onSaveInstanceState(b);b.putInt("tab",tab);b.putInt("filter",filter);b.putString("query",query);b.putBoolean("closed",closed);}
     @Override protected void onResume(){super.onResume();if(root!=null){prefs.registerOnSharedPreferenceChangeListener(settingsListener);SyncEngine.postPending(this,store);render();}}
     @Override protected void onPause(){if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(settingsListener);super.onPause();}
-    @Override protected void onDestroy(){executor.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){if(articleDialog!=null)articleDialog.dismiss();articleExecutor.shutdownNow();executor.shutdown();super.onDestroy();}
     private int dp(float n){return Ui.dp(this,n);}
     private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
@@ -55,7 +56,7 @@ public class MainActivity extends Activity {
     }
     private Button button(String label,boolean primary,Runnable action){return Ui.button(this,label,primary,action);}
     private TextView badge(String label,boolean emphasis){TextView b=bold(label,11,emphasis?ACCENT:Ui.SECONDARY);b.setPadding(dp(8),dp(5),dp(8),dp(5));b.setBackground(Ui.shape(this,emphasis?Ui.TINT:Ui.FILL,0,6));return b;}
-    private void heading(String title,String subtitle){TextView heading=bold(title,24,INK);heading.setTag("page_heading");screen.addView(heading);space(screen,8);TextView intro=text(subtitle,14,Ui.SECONDARY);intro.setTag("page_intro");screen.addView(intro);space(screen,24);}
+    private void heading(String title,String subtitle){TextView heading=bold(title,24,INK);heading.setTag("page_heading");screen.addView(heading);if(!subtitle.isEmpty()){space(screen,8);TextView intro=text(subtitle,14,Ui.SECONDARY);intro.setTag("page_intro");screen.addView(intro);}space(screen,24);}
     private void sectionTitle(LinearLayout into,String title,String icon){LinearLayout r=row();r.addView(Ui.icon(this,icon,ACCENT),new LinearLayout.LayoutParams(dp(21),dp(21)));TextView t=bold(title,17,INK);t.setPadding(dp(9),0,0,0);r.addView(t,new LinearLayout.LayoutParams(0,-2,1));into.addView(r);space(into,16);}
     private void render(){
         progress=null;noticeList=null;root=col();root.setBackgroundColor(BG);
@@ -72,7 +73,7 @@ public class MainActivity extends Activity {
         bottomNavigation.addView(nav);root.addView(bottomNavigation);if(Build.VERSION.SDK_INT>=30)root.requestApplyInsets();
     }
     private void noticesScreen(){
-        heading("역사 채용공고","제목에 ‘역사’가 있는 공고");
+        heading("채용공고","");
         LinearLayout sync=row();sync.setPadding(dp(14),dp(14),dp(12),dp(14));sync.setBackground(shape(Ui.FILL,0));
         LinearLayout status=col();TextView statusTitle=bold(SyncEngine.busy()?"새 공고를 확인하고 있어요":"게시판의 새 소식",13,INK);status.addView(statusTitle);space(status,5);
         progress=text(running.trim().isEmpty()?lastRun():running,11,MUTED);progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);status.addView(progress);LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,-2,1);statusLp.rightMargin=dp(12);sync.addView(status,statusLp);
@@ -95,7 +96,7 @@ public class MainActivity extends Activity {
         List<Notice> found=new ArrayList<>();long now=System.currentTimeMillis();
         for(Notice n:store.notices().values()){
             if(!active.contains(n.sourceId)&&!n.favorite)continue;
-            boolean show=Classifier.titleMatches(n.title)&&(filter==2?n.favorite:n.status==Status.MATCH);
+            boolean show=Classifier.matches(n)&&(filter==2?n.favorite:n.status==Status.MATCH);
             if(!show||(!closed&&n.deadline>0&&n.deadline<now))continue;
             if(!(n.title+" "+n.school+" "+n.region+" "+n.sourceName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))continue;
             found.add(n);
@@ -125,18 +126,27 @@ public class MainActivity extends Activity {
         }
     }
     private void detail(Notice n){
-        store.markRead(n.id);Dialog dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout sheet=col();sheet.setPadding(dp(24),dp(10),dp(24),dp(24));sheet.setBackground(Ui.shape(this,BG,0,24));
+        store.markRead(n.id);Dialog dialog=new Dialog(this);articleDialog=dialog;dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout sheet=col();sheet.setPadding(dp(24),dp(10),dp(24),dp(24));sheet.setBackground(Ui.shape(this,BG,0,24));
         View handle=new View(this);handle.setBackground(Ui.shape(this,0xffd9d9de,0,2));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER;sheet.addView(handle,hp);space(sheet,6);
         LinearLayout top=row();top.addView(badge(n.region.trim().isEmpty()?n.sourceName:n.region,false));top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));top.addView(Ui.iconButton(this,"close","닫기",MUTED,dialog::dismiss));sheet.addView(top);
         ScrollView scroll=new ScrollView(this);LinearLayout body=col();body.setPadding(0,dp(8),0,dp(20));body.addView(bold(n.title,23,INK));space(body,12);body.addView(text(n.sourceName+" · "+n.region,13,Ui.SECONDARY));space(body,24);
         LinearLayout deadline=card(body);deadline.setElevation(0);deadline.setBackground(shape(Ui.FILL,0));deadline.addView(text("접수 마감",12,MUTED));space(deadline,8);deadline.addView(bold(n.deadlineLabel.trim().isEmpty()?"원문에서 확인해 주세요":n.deadlineLabel,16,INK));
-        body.addView(text("지원 자격과 채용 형태, 제출 서류는 공고 원문과 첨부파일에서 확인해 주세요.",14,Ui.SECONDARY));
-        if(!n.body.trim().isEmpty()){space(body,16);TextView content=text(n.body,14,INK);content.setTextIsSelectable(true);body.addView(content);}
-        for(Link file:n.attachments){space(body,10);body.addView(button("첨부 · "+file.title(),false,()->open(file.url())));}
+        body.addView(bold("공고 본문",17,INK));space(body,10);
+        TextView bodyStatus=text(n.bodyFetchedAt>0?"저장된 본문 · 새 내용 확인 중…":"본문을 불러오고 있어요…",12,MUTED);bodyStatus.setTag("article_status");bodyStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(bodyStatus);space(body,12);
+        TextView article=text(n.bodyFetchedAt>0?n.body:"",14,INK);article.setTag("article_body");article.setTextIsSelectable(true);body.addView(article);
+        space(body,14);Button retry=button("다시 불러오기",false,()->{});retry.setTag("article_retry");retry.setVisibility(View.GONE);body.addView(retry);Future<?>[] loading=new Future<?>[1];
+        Runnable load=()->{
+            retry.setVisibility(View.GONE);bodyStatus.setText(n.bodyFetchedAt>0?"저장된 본문 · 새 내용 확인 중…":"본문을 불러오고 있어요…");
+            loading[0]=articleExecutor.submit(()->{try{
+                ArticleReader.Article result=new ArticleReader(Net::getHtml).read(n.url);long fetchedAt=System.currentTimeMillis();store.articleBody(n.id,n.url,result.body(),fetchedAt);n.body=result.body();n.bodyFetchedAt=fetchedAt;
+                runOnUiThread(()->{if(isDestroyed()||!dialog.isShowing())return;article.setText(result.body());bodyStatus.setText("원문에서 불러온 본문");});
+            }catch(Exception e){runOnUiThread(()->{if(isDestroyed()||!dialog.isShowing())return;bodyStatus.setText(n.bodyFetchedAt>0?"새 본문을 가져오지 못해 저장된 내용을 보여드려요.":"본문을 가져오지 못했어요.");if(n.bodyFetchedAt<=0)article.setText(Collector.shortError(e)+"\n\n아래 버튼으로 공고 원문을 열 수 있어요.");retry.setVisibility(View.VISIBLE);});}});
+        };
+        retry.setOnClickListener(v->load.run());
         scroll.addView(body);sheet.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout actions=row();ImageButton bookmark=Ui.iconButton(this,n.favorite?"bookmark-fill":"bookmark",n.favorite?"관심 공고 해제":"관심 공고에 저장",ACCENT,()->{store.favorite(n.id);dialog.dismiss();detail(n);});bookmark.setBackground(Ui.touch(this,BG,LINE,12));actions.addView(bookmark);Button original=button("공고 원문 열기",true,()->open(n.url));LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(0,-2,1);op.leftMargin=dp(10);actions.addView(original,op);sheet.addView(actions);
+        LinearLayout actions=row();ImageButton bookmark=Ui.iconButton(this,n.favorite?"bookmark-fill":"bookmark",n.favorite?"관심 공고 해제":"관심 공고에 저장",ACCENT,()->{store.favorite(n.id);dialog.dismiss();Notice updated=store.notices().get(n.id);detail(updated==null?n:updated);});bookmark.setBackground(Ui.touch(this,BG,LINE,12));actions.addView(bookmark);Button original=button("공고 원문 열기",true,()->open(n.url));LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(0,-2,1);op.leftMargin=dp(10);actions.addView(original,op);sheet.addView(actions);
         dialog.setContentView(sheet);Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams a=w.getAttributes();a.gravity=Gravity.BOTTOM;a.width=-1;a.height=(int)(getResources().getDisplayMetrics().heightPixels*.82);a.dimAmount=.35f;w.setAttributes(a);}
-        dialog.setOnDismissListener(d->{if(tab==0)drawNotices();});dialog.show();
+        dialog.setOnDismissListener(d->{if(loading[0]!=null)loading[0].cancel(true);if(articleDialog==dialog)articleDialog=null;if(tab==0)drawNotices();});dialog.show();load.run();
     }
     private void sourcesScreen(){
         heading("게시판 관리",store.sources().size()+"개 게시판을 한곳에서 관리해요.");
@@ -176,11 +186,11 @@ public class MainActivity extends Activity {
         LinearLayout c=card(screen);sectionTitle(c,"자동 확인","clock");Switch automatic=toggleRow(c,"하루 두 번 확인","한국 시간 기준",prefs.getBoolean("automatic",true));automatic.setTag("automatic_toggle");automatic.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("automatic",on).apply();CheckWorker.reschedule(this);});space(c,8);Ui.divider(this,c);
         for(int i=0;i<2;i++){final int slot=i;int minute=prefs.getInt("slot"+i,i==0?720:1080);actionRow(c,i==0?"첫 번째 확인":"두 번째 확인",String.format(Locale.KOREA,"%02d:%02d",minute/60,minute%60),"",()->new TimePickerDialog(this,(view,h,m)->{prefs.edit().putInt("slot"+slot,h*60+m).apply();CheckWorker.reschedule(this);render();},minute/60,minute%60,true).show());if(i==0)Ui.divider(this,c);}
         space(c,8);c.addView(text("절전이나 네트워크 상황에 따라 늦어질 수 있어요. 앱을 강제 종료했다면 다시 열어 주세요.",12,MUTED));
-        LinearLayout a=card(screen);sectionTitle(a,"새 공고 알림","bell");Switch alerts=toggleRow(a,"새 공고 알려주기","역사 공고가 추가되거나 바뀔 때",prefs.getBoolean("alerts",true));alerts.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("alerts",on).apply();if(on)requestAlerts();});space(a,8);Ui.divider(this,a);
+        LinearLayout a=card(screen);sectionTitle(a,"새 공고 알림","bell");Switch alerts=toggleRow(a,"새 공고 알려주기","조건에 맞는 공고가 추가되거나 바뀔 때",prefs.getBoolean("alerts",true));alerts.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("alerts",on).apply();if(on)requestAlerts();});space(a,8);Ui.divider(this,a);
         actionRow(a,"알림 허용·설정","","",this::requestAlerts);Ui.divider(this,a);actionRow(a,"테스트 알림 보내기","","",()->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestAlerts();return;}SyncEngine.testNotification(this);toast("휴대폰 알림창을 확인해 주세요");});Ui.divider(this,a);actionRow(a,"배터리 설정","","",()->{try{startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}catch(Exception e){openAppSettings();}});
         LinearLayout data=card(screen);sectionTitle(data,"데이터 관리","download");actionRow(data,"백업 파일 저장","","download",()->documentIntent(true));Ui.divider(this,data);actionRow(data,"백업 가져오기","","upload",()->documentIntent(false));Ui.divider(this,data);actionRow(data,"진단 내용 복사","","info",()->{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("교원 채용공고 알리미 진단",diagnostics()));toast("진단 내용을 복사했어요");});
         if(!prefs.getString("storageError","").trim().isEmpty()){space(data,10);data.addView(text(prefs.getString("storageError",""),12,AMBER));}
-        space(screen,10);screen.addView(text("공고와 설정은 이 휴대폰에 저장돼요.\n지원 자격과 채용 형태는 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.4",11,MUTED));
+        space(screen,10);screen.addView(text("공고와 읽어 온 본문은 이 휴대폰에 저장돼요.\n교육청 게시판은 ‘역사’, 학교 게시판은 ‘역사’·‘교원 채용’·‘교직원 채용’ 제목을 모아요.\n첨부파일과 지원 자격은 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.5",11,MUTED));
     }
     private void documentIntent(boolean export){Intent i=new Intent(export?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");if(export)i.putExtra(Intent.EXTRA_TITLE,"history-jobs-backup.json");try{startActivityForResult(i,export?201:202);}catch(Exception e){toast("파일 선택 앱을 열지 못했어요");}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;Uri uri=data.getData();
@@ -194,5 +204,5 @@ public class MainActivity extends Activity {
     private void open(String raw){String safe=Html.resolve(raw,raw);if(safe.trim().isEmpty()){toast("열 수 없는 주소예요");return;}try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(safe)));}catch(Exception e){toast("주소를 열 앱이 없어요");}}
     private String date(long t){return Instant.ofEpochMilli(t).atZone(Classifier.KST).format(DateTimeFormatter.ofPattern("MM.dd HH:mm",Locale.KOREA));}
     private void toast(String msg){Toast.makeText(this,msg,Toast.LENGTH_LONG).show();}
-    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.4\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
+    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.5\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
 }

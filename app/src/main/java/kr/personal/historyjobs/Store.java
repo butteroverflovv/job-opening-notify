@@ -34,7 +34,7 @@ public final class Store {
         Source current=sources.stream().filter(s->s.id.equals(attempted.id)).findFirst().orElse(null);
         if(current==null||!current.enabled||!current.url.equals(attempted.url))return List.of();
         List<Notice> notify=new ArrayList<>();
-        for(Notice n:updates){Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;}
+        for(Notice n:updates){if(n.sourceUrl.isEmpty())n.sourceUrl=attempted.url;Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;if(n.title.equals(old.title)){n.body=old.body;n.bodyFetchedAt=old.bodyFetchedAt;}}
             boolean changed=old==null||!n.fingerprint.equals(old.fingerprint);
             if(changed&&n.status==Status.MATCH){n.read=false;if(n.deadline==0||n.deadline>=System.currentTimeMillis())notify.add(n);}
             notices.put(n.id,n);
@@ -44,6 +44,7 @@ public final class Store {
         notices.values().removeIf(n->!n.favorite&&n.complete&&n.firstSeen<cutoff);
         save();return notify;
     }
+    public synchronized void articleBody(String id,String url,String body,long fetchedAt){Notice n=notices.get(id);if(n==null||!n.url.equals(url))return;n.body=body;n.bodyFetchedAt=fetchedAt;n.attachments.clear();save();}
     public synchronized void markRead(String id){Notice n=notices.get(id);if(n!=null){n.read=true;save();}}
     public synchronized void favorite(String id){Notice n=notices.get(id);if(n!=null){n.favorite=!n.favorite;save();}}
     public synchronized JSONObject exportData(){return toJson();}
@@ -57,8 +58,8 @@ public final class Store {
     private void load(JSONObject j)throws JSONException{
         List<Source> ss=new ArrayList<>();LinkedHashMap<String,Notice> nn=new LinkedHashMap<>();
         JSONArray a=j.getJSONArray("sources");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Source s=kr.personal.historyjobs.core.Model.source(x.getString("id"),x.getString("name"),x.getString("url"),x.optString("kind","AUTO"),x.optString("region","서울/경기"),x.optString("schoolHint"));s.enabled=x.optBoolean("enabled",true);s.lastAttempt=x.optLong("lastAttempt");s.lastSuccess=x.optLong("lastSuccess");s.message=x.optString("message","아직 확인하지 않았어요");ss.add(s);}
-        a=j.getJSONArray("notices");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Notice n=new Notice();n.id=x.getString("id");n.sourceId=x.optString("sourceId");n.sourceName=x.optString("sourceName");n.url=x.getString("url");n.title=x.optString("title");n.school=x.optString("school");n.region=x.optString("region");n.body=x.optString("body");n.reason=x.optString("reason");n.fingerprint=x.optString("fingerprint");n.deadlineLabel=x.optString("deadlineLabel");n.deadline=x.optLong("deadline");n.firstSeen=x.optLong("firstSeen");n.lastSeen=x.optLong("lastSeen");n.read=x.optBoolean("read");n.favorite=x.optBoolean("favorite");n.complete=x.optBoolean("complete");try{n.status=Status.valueOf(x.optString("status","REVIEW"));}catch(Exception e){n.status=Status.REVIEW;}JSONArray fs=x.optJSONArray("attachments");if(fs!=null)for(int k=0;k<fs.length();k++){JSONObject f=fs.getJSONObject(k);n.attachments.add(new Link(f.optString("title"),f.optString("url")));}nn.put(n.id,n);}
-        if(j.optInt("selectionVersion",0)<2)for(Source src:ss)src.message="제목 기준으로 변경됐어요. ‘지금 확인’으로 새 목록을 가져와 주세요.";
+        a=j.getJSONArray("notices");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Notice n=new Notice();n.id=x.getString("id");n.sourceId=x.optString("sourceId");n.sourceName=x.optString("sourceName");n.sourceUrl=x.optString("sourceUrl");if(n.sourceUrl.isEmpty())for(Source src:ss)if(src.id.equals(n.sourceId)){n.sourceUrl=src.url;break;}n.url=x.getString("url");n.title=x.optString("title");n.school=x.optString("school");n.region=x.optString("region");n.body=x.optString("body");n.bodyFetchedAt=x.optLong("bodyFetchedAt");n.reason=x.optString("reason");n.fingerprint=x.optString("fingerprint");n.deadlineLabel=x.optString("deadlineLabel");n.deadline=x.optLong("deadline");n.firstSeen=x.optLong("firstSeen");n.lastSeen=x.optLong("lastSeen");n.read=x.optBoolean("read");n.favorite=x.optBoolean("favorite");n.complete=x.optBoolean("complete");try{n.status=Status.valueOf(x.optString("status","REVIEW"));}catch(Exception e){n.status=Status.REVIEW;}JSONArray fs=x.optJSONArray("attachments");if(fs!=null)for(int k=0;k<fs.length();k++){JSONObject f=fs.getJSONObject(k);n.attachments.add(new Link(f.optString("title"),f.optString("url")));}nn.put(n.id,n);}
+        if(j.optInt("selectionVersion",0)<3)for(Source src:ss)src.message="학교 게시판의 채용 제목 조건이 확대됐어요. ‘지금 확인’으로 새 목록을 가져와 주세요.";
         android.content.SharedPreferences notified=context.getSharedPreferences("notified",0);
         android.content.SharedPreferences.Editor delivery=notified.edit();
         for(Notice n:nn.values()){
@@ -70,9 +71,9 @@ public final class Store {
         sources.clear();sources.addAll(ss);notices.clear();notices.putAll(nn);
     }
     private JSONObject toJson(){
-        JSONObject j=new JSONObject();try{j.put("schema",1).put("selectionVersion",2);JSONArray ss=new JSONArray(),ns=new JSONArray();
+        JSONObject j=new JSONObject();try{j.put("schema",1).put("selectionVersion",3);JSONArray ss=new JSONArray(),ns=new JSONArray();
             for(Source s:sources){JSONObject x=new JSONObject();x.put("id",s.id).put("name",s.name).put("url",s.url).put("kind",s.kind).put("region",s.region).put("schoolHint",s.schoolHint).put("enabled",s.enabled).put("lastAttempt",s.lastAttempt).put("lastSuccess",s.lastSuccess).put("message",s.message);ss.put(x);}
-            for(Notice n:notices.values()){JSONObject x=new JSONObject();x.put("id",n.id).put("sourceId",n.sourceId).put("sourceName",n.sourceName).put("url",n.url).put("title",n.title).put("school",n.school).put("region",n.region).put("body",n.body).put("reason",n.reason).put("fingerprint",n.fingerprint).put("deadlineLabel",n.deadlineLabel).put("deadline",n.deadline).put("firstSeen",n.firstSeen).put("lastSeen",n.lastSeen).put("read",n.read).put("favorite",n.favorite).put("complete",n.complete).put("status",n.status.name());JSONArray fs=new JSONArray();for(Link f:n.attachments)fs.put(new JSONObject().put("title",f.title()).put("url",f.url()));x.put("attachments",fs);ns.put(x);}
+            for(Notice n:notices.values()){JSONObject x=new JSONObject();x.put("id",n.id).put("sourceId",n.sourceId).put("sourceName",n.sourceName).put("sourceUrl",n.sourceUrl).put("url",n.url).put("title",n.title).put("school",n.school).put("region",n.region).put("body",n.body).put("bodyFetchedAt",n.bodyFetchedAt).put("reason",n.reason).put("fingerprint",n.fingerprint).put("deadlineLabel",n.deadlineLabel).put("deadline",n.deadline).put("firstSeen",n.firstSeen).put("lastSeen",n.lastSeen).put("read",n.read).put("favorite",n.favorite).put("complete",n.complete).put("status",n.status.name());JSONArray fs=new JSONArray();for(Link f:n.attachments)fs.put(new JSONObject().put("title",f.title()).put("url",f.url()));x.put("attachments",fs);ns.put(x);}
             j.put("sources",ss).put("notices",ns);
         }catch(JSONException e){throw new IllegalStateException(e);}return j;
     }

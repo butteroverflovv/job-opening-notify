@@ -30,8 +30,8 @@ public final class Collector {
         List<Notice> out=new ArrayList<>();int matches=0;
         for(Link link:listings.values()){
             String key=id(source,link.url());Notice old=known.get(key);
-            if(!Classifier.titleMatches(link.title())&&old==null)continue;
-            Notice n=new Notice();n.id=key;n.sourceId=source.id;n.sourceName=source.name;n.region=source.region;
+            if(!Classifier.titleMatches(source,link.title())&&old==null)continue;
+            Notice n=new Notice();n.id=key;n.sourceId=source.id;n.sourceName=source.name;n.sourceUrl=source.url;n.region=source.region;
             n.url=link.url();n.title=link.title();n.school=source.schoolHint;n.firstSeen=now;n.lastSeen=now;
             if(old!=null){n.deadline=old.deadline;n.deadlineLabel=old.deadlineLabel;}
             Classifier.Deadline deadline=Classifier.deadline(link.summary(),LocalDate.now(Classifier.KST));
