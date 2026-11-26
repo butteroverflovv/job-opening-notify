@@ -14,14 +14,9 @@ public final class Classifier {
             return host.equals("work.sen.go.kr")||((host.equals("goe.go.kr")||host.equals("www.goe.go.kr"))&&(path.equals("/recruit")||path.startsWith("/recruit/")));
         }catch(Exception ignored){return false;}
     }
-    public static boolean titleMatches(String title,String boardUrl){
-        if(titleMatches(title))return true;
-        if(title==null||boardUrl==null||boardUrl.isEmpty()||educationBoard(boardUrl))return false;
-        String compact=title.replaceAll("[\\s\\p{Z}\\u200B]+","");
-        return compact.contains("교원채용")||compact.contains("교직원채용");
-    }
-    public static boolean titleMatches(Source source,String title){return titleMatches(title,source.url);}
-    public static boolean matches(Notice n){return titleMatches(n.title,n.sourceUrl.isEmpty()?n.url:n.sourceUrl);}
+    public static boolean titleMatches(String title,String boardUrl){return Selection.titleMatches(title,Selection.defaults(boardUrl));}
+    public static boolean titleMatches(Source source,String title){return Selection.titleMatches(title,source.keywords);}
+    public static boolean matches(Notice n){return Selection.titleMatches(n.title,n.keywords==null?Selection.defaults(n.sourceUrl.isEmpty()?n.url:n.sourceUrl):n.keywords);}
     public record Verdict(Status status,String reason,String school) {}
     public static boolean titleMatches(String title){return title!=null&&title.contains("역사");}
     public static Verdict classify(String title,String body,String hint,boolean complete){
@@ -30,10 +25,11 @@ public final class Classifier {
             titleMatches(title)?"제목에 ‘역사’ 포함":"제목에 ‘역사’가 없어 제외",name);
     }
     /** Reapply current selection to saved data without relying on old body/attachment results. */
-    public static void reclassify(Notice n){
+    public static void reclassify(Notice n){reclassify(n,LocalDate.now(KST));}
+    public static void reclassify(Notice n,LocalDate today){
         String name=school(n.title);if(!name.isEmpty())n.school=name;
-        n.status=matches(n)?Status.MATCH:Status.EXCLUDED;
-        n.reason=n.status==Status.EXCLUDED?"게시판의 제목 조건과 일치하지 않아 제외":titleMatches(n.title)?"제목에 ‘역사’ 포함":"학교 게시판의 교원·교직원 채용 공고";
+        n.status=Selection.eligible(n,today)?Status.MATCH:Status.EXCLUDED;
+        n.reason=!Selection.inWindow(n.published,today)?(n.published.isEmpty()?"게시일을 확인하지 못해 제외":"작년·올해 게시물이 아니어서 제외"):matches(n)?"게시판의 수집 키워드와 일치":"게시판의 수집 키워드와 일치하지 않아 제외";
         if(n.bodyFetchedAt<=0)n.body="";
         n.attachments.clear();n.complete=true;n.fingerprint=n.contentHash();
     }

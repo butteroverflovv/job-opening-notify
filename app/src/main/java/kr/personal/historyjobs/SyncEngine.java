@@ -45,7 +45,7 @@ public final class SyncEngine {
         android.content.SharedPreferences sent=c.getSharedPreferences("notified",0);
         Set<String> active=new HashSet<>();for(Source s:store.sources())if(s.enabled)active.add(s.id);
         List<Notice> matches=new ArrayList<>();long now=System.currentTimeMillis();
-        for(Notice n:store.notices().values())if(active.contains(n.sourceId)&&n.status==Status.MATCH&&Classifier.matches(n)&&!n.read&&(n.deadline==0||n.deadline>=now)&&!n.fingerprint.equals(sent.getString(n.id,"")))matches.add(n);
+        for(Notice n:store.notices().values())if(active.contains(n.sourceId)&&n.status==Status.MATCH&&Selection.eligible(n,java.time.LocalDate.now(Classifier.KST))&&!n.read&&(n.deadline==0||n.deadline>=now)&&!n.fingerprint.equals(sent.getString(n.id,"")))matches.add(n);
         if(matches.isEmpty())return;
         matches.sort(Comparator.comparingLong((Notice n)->n.firstSeen).reversed());
         StringBuilder detail=new StringBuilder();for(Notice n:matches.subList(0,Math.min(8,matches.size())))detail.append("• ").append(n.title).append('\n');

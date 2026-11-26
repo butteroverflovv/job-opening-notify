@@ -7,6 +7,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import static kr.personal.historyjobs.core.Model.*;
+import kr.personal.historyjobs.core.Selection;
+import kr.personal.historyjobs.core.Classifier;
 
 public final class Store {
     private static Store instance;
@@ -25,23 +27,20 @@ public final class Store {
     public synchronized Map<String,Notice> notices(){return new LinkedHashMap<>(notices);}
     public synchronized String warning(){return loadWarning;}
     public synchronized Source source(String id){return sources.stream().filter(s->s.id.equals(id)).map(Source::copy).findFirst().orElse(null);}
-    public synchronized void putSource(Source s){if(!loadWarning.trim().isEmpty())return;sources.removeIf(x->x.id.equals(s.id));sources.add(s);save();}
+    public synchronized void putSource(Source s){if(!loadWarning.trim().isEmpty())return;sources.removeIf(x->x.id.equals(s.id));sources.add(s);for(Notice n:notices.values())if(n.sourceId.equals(s.id)){n.keywords=new ArrayList<>(s.keywords);n.region=s.region;Classifier.reclassify(n);}save();}
     public synchronized void removeSource(String id){sources.removeIf(s->s.id.equals(id));save();}
     public synchronized void sourceResult(Source attempted,String message,boolean success,long now){
-        for(Source s:sources)if(s.id.equals(attempted.id)&&s.url.equals(attempted.url)){s.lastAttempt=now;if(success)s.lastSuccess=now;s.message=message;save();break;}
+        for(Source s:sources)if(s.id.equals(attempted.id)&&s.url.equals(attempted.url)&&s.keywords.equals(attempted.keywords)&&s.region.equals(attempted.region)){s.lastAttempt=now;if(success)s.lastSuccess=now;s.message=message;save();break;}
     }
     public synchronized List<Notice> merge(Source attempted,List<Notice> updates){
         Source current=sources.stream().filter(s->s.id.equals(attempted.id)).findFirst().orElse(null);
-        if(current==null||!current.enabled||!current.url.equals(attempted.url))return List.of();
+        if(current==null||!current.enabled||!current.url.equals(attempted.url)||!current.keywords.equals(attempted.keywords)||!current.region.equals(attempted.region))return List.of();
         List<Notice> notify=new ArrayList<>();
-        for(Notice n:updates){if(n.sourceUrl.isEmpty())n.sourceUrl=attempted.url;Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;if(n.title.equals(old.title)){n.body=old.body;n.bodyFetchedAt=old.bodyFetchedAt;}}
+        for(Notice n:updates){if(n.sourceUrl.isEmpty())n.sourceUrl=attempted.url;n.keywords=new ArrayList<>(current.keywords);n.region=current.region;Classifier.reclassify(n);Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;if(n.title.equals(old.title)){n.body=old.body;n.bodyFetchedAt=old.bodyFetchedAt;}}
             boolean changed=old==null||!n.fingerprint.equals(old.fingerprint);
             if(changed&&n.status==Status.MATCH){n.read=false;if(n.deadline==0||n.deadline>=System.currentTimeMillis())notify.add(n);}
             notices.put(n.id,n);
         }
-        // Keep favorites and pending work; prune only old nonfavorites with completed reads.
-        long cutoff=System.currentTimeMillis()-180L*24*60*60*1000;
-        notices.values().removeIf(n->!n.favorite&&n.complete&&n.firstSeen<cutoff);
         save();return notify;
     }
     public synchronized void articleBody(String id,String url,String body,long fetchedAt){Notice n=notices.get(id);if(n==null||!n.url.equals(url))return;n.body=body;n.bodyFetchedAt=fetchedAt;n.attachments.clear();save();}
@@ -52,14 +51,14 @@ public final class Store {
         JSONObject j=new JSONObject(text);if(j.optInt("schema")!=1)throw new IOException("지원하지 않는 백업 형식");
         JSONArray src=j.optJSONArray("sources"),items=j.optJSONArray("notices");
         if(src==null||src.length()>50||items==null||items.length()>10000)throw new IOException("백업 크기 또는 형식 오류");
-        for(int i=0;i<src.length();i++){JSONObject s=src.getJSONObject(i);String url=s.optString("url");if(kr.personal.historyjobs.core.Html.resolve(url,url).trim().isEmpty())throw new IOException("게시판 주소 형식 오류");}
+        for(int i=0;i<src.length();i++){JSONObject s=src.getJSONObject(i);String url=s.optString("url");if(kr.personal.historyjobs.core.Html.resolve(url,url).trim().isEmpty())throw new IOException("게시판 주소 형식 오류");if(s.has("keywords")&&!Selection.validKeywords(words(s.optJSONArray("keywords"))))throw new IOException("게시판 키워드 형식 오류");}
         load(j);loadWarning="";save();
     }
     private void load(JSONObject j)throws JSONException{
         List<Source> ss=new ArrayList<>();LinkedHashMap<String,Notice> nn=new LinkedHashMap<>();
-        JSONArray a=j.getJSONArray("sources");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Source s=kr.personal.historyjobs.core.Model.source(x.getString("id"),x.getString("name"),x.getString("url"),x.optString("kind","AUTO"),x.optString("region","서울/경기"),x.optString("schoolHint"));s.enabled=x.optBoolean("enabled",true);s.lastAttempt=x.optLong("lastAttempt");s.lastSuccess=x.optLong("lastSuccess");s.message=x.optString("message","아직 확인하지 않았어요");ss.add(s);}
-        a=j.getJSONArray("notices");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Notice n=new Notice();n.id=x.getString("id");n.sourceId=x.optString("sourceId");n.sourceName=x.optString("sourceName");n.sourceUrl=x.optString("sourceUrl");if(n.sourceUrl.isEmpty())for(Source src:ss)if(src.id.equals(n.sourceId)){n.sourceUrl=src.url;break;}n.url=x.getString("url");n.title=x.optString("title");n.school=x.optString("school");n.region=x.optString("region");n.body=x.optString("body");n.bodyFetchedAt=x.optLong("bodyFetchedAt");n.reason=x.optString("reason");n.fingerprint=x.optString("fingerprint");n.deadlineLabel=x.optString("deadlineLabel");n.deadline=x.optLong("deadline");n.firstSeen=x.optLong("firstSeen");n.lastSeen=x.optLong("lastSeen");n.read=x.optBoolean("read");n.favorite=x.optBoolean("favorite");n.complete=x.optBoolean("complete");try{n.status=Status.valueOf(x.optString("status","REVIEW"));}catch(Exception e){n.status=Status.REVIEW;}JSONArray fs=x.optJSONArray("attachments");if(fs!=null)for(int k=0;k<fs.length();k++){JSONObject f=fs.getJSONObject(k);n.attachments.add(new Link(f.optString("title"),f.optString("url")));}nn.put(n.id,n);}
-        if(j.optInt("selectionVersion",0)<3)for(Source src:ss)src.message="학교 게시판의 채용 제목 조건이 확대됐어요. ‘지금 확인’으로 새 목록을 가져와 주세요.";
+        JSONArray a=j.getJSONArray("sources");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Source s=kr.personal.historyjobs.core.Model.source(x.getString("id"),x.getString("name"),x.getString("url"),x.optString("kind","AUTO"),x.optString("region","서울/경기"),x.optString("schoolHint"));if(x.has("keywords"))s.keywords=words(x.optJSONArray("keywords"));s.enabled=x.optBoolean("enabled",true);s.lastAttempt=x.optLong("lastAttempt");s.lastSuccess=x.optLong("lastSuccess");s.message=x.optString("message","아직 확인하지 않았어요");ss.add(s);}
+        a=j.getJSONArray("notices");for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);Notice n=new Notice();n.id=x.getString("id");n.sourceId=x.optString("sourceId");n.sourceName=x.optString("sourceName");n.sourceUrl=x.optString("sourceUrl");if(n.sourceUrl.isEmpty())for(Source src:ss)if(src.id.equals(n.sourceId)){n.sourceUrl=src.url;break;}n.url=x.getString("url");n.title=x.optString("title");n.school=x.optString("school");n.region=Selection.region(x.optString("region"));n.published=Selection.date(x.optString("published"));if(x.has("keywords"))n.keywords=words(x.optJSONArray("keywords"));for(Source src:ss)if(src.id.equals(n.sourceId)){n.keywords=new ArrayList<>(src.keywords);n.region=src.region;break;}n.body=x.optString("body");n.bodyFetchedAt=x.optLong("bodyFetchedAt");n.reason=x.optString("reason");n.fingerprint=x.optString("fingerprint");n.deadlineLabel=x.optString("deadlineLabel");n.deadline=x.optLong("deadline");n.firstSeen=x.optLong("firstSeen");n.lastSeen=x.optLong("lastSeen");n.read=x.optBoolean("read");n.favorite=x.optBoolean("favorite");n.complete=x.optBoolean("complete");try{n.status=Status.valueOf(x.optString("status","REVIEW"));}catch(Exception e){n.status=Status.REVIEW;}JSONArray fs=x.optJSONArray("attachments");if(fs!=null)for(int k=0;k<fs.length();k++){JSONObject f=fs.getJSONObject(k);n.attachments.add(new Link(f.optString("title"),f.optString("url")));}nn.put(n.id,n);}
+        if(j.optInt("selectionVersion",0)<4)for(Source src:ss)src.message="게시일·키워드 기준이 변경됐어요. ‘지금 확인’으로 게시일을 갱신해 주세요.";
         android.content.SharedPreferences notified=context.getSharedPreferences("notified",0);
         android.content.SharedPreferences.Editor delivery=notified.edit();
         for(Notice n:nn.values()){
@@ -70,10 +69,11 @@ public final class Store {
         delivery.apply();
         sources.clear();sources.addAll(ss);notices.clear();notices.putAll(nn);
     }
+    private static List<String> words(JSONArray values){List<String> out=new ArrayList<>();if(values!=null)for(int i=0;i<values.length();i++)out.add(values.optString(i));return Selection.keywords(String.join("\n",out));}
     private JSONObject toJson(){
-        JSONObject j=new JSONObject();try{j.put("schema",1).put("selectionVersion",3);JSONArray ss=new JSONArray(),ns=new JSONArray();
-            for(Source s:sources){JSONObject x=new JSONObject();x.put("id",s.id).put("name",s.name).put("url",s.url).put("kind",s.kind).put("region",s.region).put("schoolHint",s.schoolHint).put("enabled",s.enabled).put("lastAttempt",s.lastAttempt).put("lastSuccess",s.lastSuccess).put("message",s.message);ss.put(x);}
-            for(Notice n:notices.values()){JSONObject x=new JSONObject();x.put("id",n.id).put("sourceId",n.sourceId).put("sourceName",n.sourceName).put("sourceUrl",n.sourceUrl).put("url",n.url).put("title",n.title).put("school",n.school).put("region",n.region).put("body",n.body).put("bodyFetchedAt",n.bodyFetchedAt).put("reason",n.reason).put("fingerprint",n.fingerprint).put("deadlineLabel",n.deadlineLabel).put("deadline",n.deadline).put("firstSeen",n.firstSeen).put("lastSeen",n.lastSeen).put("read",n.read).put("favorite",n.favorite).put("complete",n.complete).put("status",n.status.name());JSONArray fs=new JSONArray();for(Link f:n.attachments)fs.put(new JSONObject().put("title",f.title()).put("url",f.url()));x.put("attachments",fs);ns.put(x);}
+        JSONObject j=new JSONObject();try{j.put("schema",1).put("selectionVersion",4);JSONArray ss=new JSONArray(),ns=new JSONArray();
+            for(Source s:sources){JSONObject x=new JSONObject();x.put("id",s.id).put("name",s.name).put("url",s.url).put("kind",s.kind).put("region",s.region).put("schoolHint",s.schoolHint).put("keywords",new JSONArray(s.keywords)).put("enabled",s.enabled).put("lastAttempt",s.lastAttempt).put("lastSuccess",s.lastSuccess).put("message",s.message);ss.put(x);}
+            for(Notice n:notices.values()){JSONObject x=new JSONObject();x.put("id",n.id).put("sourceId",n.sourceId).put("sourceName",n.sourceName).put("sourceUrl",n.sourceUrl).put("url",n.url).put("title",n.title).put("school",n.school).put("region",n.region).put("published",n.published).put("keywords",new JSONArray(n.keywords==null?Selection.defaults(n.sourceUrl):n.keywords)).put("body",n.body).put("bodyFetchedAt",n.bodyFetchedAt).put("reason",n.reason).put("fingerprint",n.fingerprint).put("deadlineLabel",n.deadlineLabel).put("deadline",n.deadline).put("firstSeen",n.firstSeen).put("lastSeen",n.lastSeen).put("read",n.read).put("favorite",n.favorite).put("complete",n.complete).put("status",n.status.name());JSONArray fs=new JSONArray();for(Link f:n.attachments)fs.put(new JSONObject().put("title",f.title()).put("url",f.url()));x.put("attachments",fs);ns.put(x);}
             j.put("sources",ss).put("notices",ns);
         }catch(JSONException e){throw new IllegalStateException(e);}return j;
     }

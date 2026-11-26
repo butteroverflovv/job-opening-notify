@@ -8,20 +8,24 @@ public final class Model {
     private Model() {}
     public enum Status { MATCH, REVIEW, EXCLUDED }
     public static class Source {
-        public String id="", name="", url="", kind="AUTO", region="서울/경기", schoolHint="";
+        public String id="", name="", url="", kind="AUTO", region="기타 지역", schoolHint="";
+        public List<String> keywords=new ArrayList<>();
         public boolean enabled=true;
         public long lastAttempt=0, lastSuccess=0;
         public String message="아직 확인하지 않았어요";
         public Source copy() {
-            Source s=new Source(); s.id=id;s.name=name;s.url=url;s.kind=kind;s.region=region;s.schoolHint=schoolHint;
+            Source s=new Source(); s.id=id;s.name=name;s.url=url;s.kind=kind;s.region=region;s.schoolHint=schoolHint;s.keywords=new ArrayList<>(keywords);
             s.enabled=enabled;s.lastAttempt=lastAttempt;s.lastSuccess=lastSuccess;s.message=message;return s;
         }
     }
-    public record Link(String title, String url, String summary) {
+    public record Link(String title,String url,String summary,String published,boolean pinned) {
         public Link(String title,String url){this(title,url,"");}
+        public Link(String title,String url,String summary){this(title,url,summary,"",false);}
+        public Link(String title,String url,String summary,String published){this(title,url,summary,published,false);}
     }
     public static class Notice {
         public String id="", sourceId="", sourceName="", sourceUrl="", url="", title="", school="", region="", body="", reason="", fingerprint="", deadlineLabel="", published="";
+        public List<String> keywords=null;
         public Status status=Status.REVIEW;
         public List<Link> attachments=new ArrayList<>();
         public long deadline=0, firstSeen=0, lastSeen=0, bodyFetchedAt=0;
@@ -38,10 +42,10 @@ public final class Model {
         List<Source> out=new ArrayList<>();
         out.add(source("sen","서울교육일자리포털","https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd002&jobCategory=jd002001&jobDuty=all0&q_tabId=jobTab&q_srchJob=jd002,%EA%B3%84%EC%95%BD%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001,%EA%B8%B0%EA%B0%84%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001-all,%EC%A0%84%EC%B2%B4","SEOUL","서울",""));
         out.add(source("goe","경기도교육청","https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancList.do?mi=10502","GYEONGGI","경기",""));
-        out.add(source("tokyo","동경한국학교","http://www.tokos.ed.jp/front_notice.brd?shell=/index.shell:225","TOKYO","동경","동경한국학교"));
+        out.add(source("tokyo","동경한국학교","http://www.tokos.ed.jp/front_notice.brd?shell=/index.shell:225","TOKYO","기타 지역","동경한국학교"));
         return out;
     }
     public static Source source(String id,String name,String url,String kind,String region,String hint) {
-        Source s=new Source();s.id=id;s.name=name;s.url=url;s.kind=kind;s.region=region;s.schoolHint=hint;return s;
+        Source s=new Source();s.id=id;s.name=name;s.url=url;s.kind=kind;s.region=Selection.region(region);s.schoolHint=hint;s.keywords=Selection.defaults(url);return s;
     }
 }

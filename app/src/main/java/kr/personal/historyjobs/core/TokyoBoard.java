@@ -10,9 +10,10 @@ final class TokyoBoard {
             if(row.size()<6||!(row.get(0) instanceof List<?>))continue;
             List<?> head=(List<?>)row.get(0);if(head.size()<3)continue;
             String u=Html.resolve(base,String.valueOf(head.get(2))),title=String.valueOf(row.get(5));
-            if(!u.contains(".brd/_")||!title.matches(".*(?:채용|모집|임용|採用|募集|역사|한국사|세계사).*"))continue;
+            if(!u.contains(".brd/_")||title.trim().isEmpty())continue;
             if(!school.isEmpty()&&!title.contains(school))title=school+" "+title;
-            out.add(new Link(title,u));
+            String published="";if(row.get(2) instanceof List<?> date&&!date.isEmpty())published=Selection.date(String.valueOf(date.get(0)));
+            out.add(new Link(title,u,"",published));
         }
         return out;
     }

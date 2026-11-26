@@ -52,6 +52,7 @@ final class Ui {
         private void path(Canvas c,float... v){Path t=new Path();t.moveTo(v[0],v[1]);for(int i=2;i<v.length;i+=2)t.lineTo(v[i],v[i+1]);c.drawPath(t,p);}
         @Override public void draw(Canvas c){c.save();Rect r=getBounds();c.translate(r.left,r.top);c.scale(r.width()/24f,r.height()/24f);
             switch(name){
+                case "filter":path(c,3,4,21,4,14,12,14,19,10,21,10,12,3,4);break;
                 case "search":c.drawCircle(10.5f,10.5f,6.5f,p);line(c,15.5f,15.5f,21,21);break;
                 case "close":path(c,6,6,18,18);path(c,18,6,6,18);break;
                 case "bookmark":case "bookmark-fill":

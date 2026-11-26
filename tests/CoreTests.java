@@ -10,6 +10,7 @@ import java.util.zip.*;
 public class CoreTests {
     static int passed=0;
     static void check(boolean value,String label){if(!value)throw new AssertionError(label);passed++;System.out.println("PASS "+label);}
+    static Notice recentNotice(){Notice n=new Notice();n.published=LocalDate.now(Classifier.KST).toString();return n;}
     static void verdict(Status want,String title,String body,String hint,boolean complete){check(Classifier.classify(title,body,hint,complete).status()==want,"classify: "+title+" => "+want);}
     static Source sen=Model.defaults().get(0),goe=Model.defaults().get(1),tokyo=Model.defaults().get(2);
     public static void main(String[] args)throws Exception{
@@ -26,12 +27,12 @@ public class CoreTests {
         verdict(Status.EXCLUDED,"가람고등학교 기간제교사 채용","","",false);
         verdict(Status.EXCLUDED,"역 사 교원 채용","","",true);
         check(!Classifier.titleMatches(null),"null title excluded");
-        Notice migrated=new Notice();migrated.title="가람중학교 영어 채용";migrated.status=Status.REVIEW;migrated.favorite=true;migrated.read=true;migrated.body="본문에 역사 포함";migrated.attachments.add(new Link("파일","https://a.test/file.hwp"));
+        Notice migrated=recentNotice();migrated.title="가람중학교 영어 채용";migrated.status=Status.REVIEW;migrated.favorite=true;migrated.read=true;migrated.body="본문에 역사 포함";migrated.attachments.add(new Link("파일","https://a.test/file.hwp"));
         Classifier.reclassify(migrated);
         check(migrated.status==Status.EXCLUDED&&migrated.favorite&&migrated.read,"old unrelated review hidden without losing saved flags");
         migrated.title="가람중학교 역사 채용";migrated.complete=false;Classifier.reclassify(migrated);
         check(migrated.status==Status.MATCH&&migrated.complete&&migrated.attachments.isEmpty(),"old failed history item becomes normal title match");
-        Notice hashItem=new Notice();hashItem.title="가람중학교 역사 기간제";hashItem.url="https://a.test/job";hashItem.body="본문 1";String beforeHash=hashItem.contentHash();hashItem.body="본문 오류";
+        Notice hashItem=recentNotice();hashItem.title="가람중학교 역사 기간제";hashItem.url="https://a.test/job";hashItem.body="본문 1";String beforeHash=hashItem.contentHash();hashItem.body="본문 오류";
         check(beforeHash.equals(hashItem.contentHash()),"body errors do not produce revised alerts");
         Classifier.Deadline d=Classifier.deadline("접수기간: 2026. 11. 26. ~ 2026. 11. 30. 15:00",LocalDate.of(2026,11,26));
         check(Instant.ofEpochMilli(d.epoch()).equals(Instant.parse("2026-11-30T06:00:00Z")),"deadline KST conversion");
@@ -41,6 +42,7 @@ public class CoreTests {
         check(Classifier.deadline("접수기간 2026.13.40",LocalDate.now()).epoch()==0,"invalid date ignored");
         check(Classifier.deadline("접수기간 2026/11/30",LocalDate.now()).label().contains("원문"),"unknown closing time disclosed");
         String sh="<html><body><table><tr><td><a href=\"javascript:fnView('123456');\">가람중학교 역사 기간제교사 채용</a></td></tr></table><a href='?q_currPage=2'>2</a></body></html>";
+        sh=sh.replace("</tr>","<td class='date'>2026-11-26</td></tr>");
         BoardParser.Listing sl=BoardParser.listing(sen,sen.url,sh);
         check(sl.items().size()==1&&sl.items().get(0).url().endsWith("q_rcrtSn=123456"),"Seoul javascript detail links");
         check(sl.pages().size()==1,"pagination discovery");
@@ -89,6 +91,8 @@ public class CoreTests {
         collectorTests(sh);
         expandedSelectionTests();
         articleTests();
+        windowAndKeywordTests();
+        datedCollectionTests();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
@@ -101,7 +105,8 @@ public class CoreTests {
         check(result.notices().size()==1&&result.notices().get(0).status==Status.MATCH,"title matches collected without detail access");
         check(requests.stream().noneMatch(x->x.contains("BD_selectRecDetail")),"no body or attachment network requests");
         String mixed="<a href='/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=11'><h4 class='list_title'>가람중학교 영어 교원 채용</h4><p>학교의 역사와 전통</p></a><a href='/work/search/recInfo/BD_selectRecDetail.do?q_rcrtSn=12'><h4 class='list_title'>가람중학교 역사 채용</h4><p>접수기간 2026/11/26 ~ 2026/11/30</p><p>채용기간 2026/12/01 ~ 2027/02/28</p></a>";
-        Collector filtered=new Collector((url,max,ref)->new Net.Response(mixed.getBytes(StandardCharsets.UTF_8),"text/html",url));
+        mixed=mixed.replace("</a>","<time datetime='2026-11-26'></time></a>");
+        final String datedMixed=mixed;Collector filtered=new Collector((url,max,ref)->new Net.Response(datedMixed.getBytes(StandardCharsets.UTF_8),"text/html",url));
         Collector.Result selected=filtered.collect(sen,Map.of(),now);
         check(selected.listed()==2&&selected.checked()==1&&selected.notices().size()==1,"history only in card metadata does not match English title");
         check(selected.notices().get(0).deadlineLabel.startsWith("2026-11-30"),"deadline from list excludes employment end date");
@@ -125,7 +130,8 @@ public class CoreTests {
         check(Classifier.titleMatches("교원 채용","https://school.example.org/list?next=work.sen.go.kr"),"policy uses parsed host, not substring");
         Source central=sen.copy();central.kind="GENERIC";check(!Classifier.titleMatches(central,"교원 채용"),"central URL rule independent of adapter override");
         String list="<a href='/view.do?nttSn=1'>2027 교원 채용</a><a href='/view.do?nttSn=2'>2027 교직원 채용</a><a href='/view.do?nttSn=3'>행사 안내</a>";
-        List<String> requests=new ArrayList<>();Collector c=new Collector((url,max,ref)->{requests.add(url);return response(url,list);});
+        list=list.replace("</a>","<time datetime='2026-11-26'></time></a>");
+        final String datedList=list;List<String> requests=new ArrayList<>();Collector c=new Collector((url,max,ref)->{requests.add(url);return response(url,datedList);});
         Collector.Result result=c.collect(school,Map.of(),System.currentTimeMillis());
         check(result.notices().size()==2&&result.checked()==2&&requests.size()==1,"added school collects broad titles with list request only");
         Notice n=result.notices().get(0);check(n.sourceUrl.equals(school.url)&&Classifier.matches(n),"source policy snapshot carried into notice");
@@ -133,7 +139,7 @@ public class CoreTests {
         check(n.status==Status.MATCH&&n.body.isEmpty()&&n.favorite&&n.read,"broad migration removes legacy body, preserves flags");
         n.body="본문을 읽었어요";n.bodyFetchedAt=1;String hash=n.contentHash();Classifier.reclassify(n);
         check(n.body.equals("본문을 읽었어요")&&n.contentHash().equals(hash),"new body cache retained without changing notification fingerprint");
-        n.sourceUrl=goe.url;Classifier.reclassify(n);check(n.status==Status.EXCLUDED,"same broad title excluded on central source");
+        n.sourceUrl=goe.url;n.keywords=new ArrayList<>(goe.keywords);Classifier.reclassify(n);check(n.status==Status.EXCLUDED,"same broad title excluded on central source");
     }
     static Net.Response response(String url,String html){return new Net.Response(html.getBytes(StandardCharsets.UTF_8),"text/html; charset=utf-8",url);}
     static void articleTests()throws Exception{
@@ -165,6 +171,54 @@ public class CoreTests {
         check(image.read(base).body().contains("이미지"),"image-only article clearly directs to original without fetching images");
         ArticleReader unknown=new ArticleReader((url,max,ref)->response(url,"<body>홈페이지 메뉴와 로그인만 있어요.</body>"));
         try{unknown.read(base);throw new AssertionError("menu accepted as article");}catch(IOException expected){check(true,"unrecognized body fails instead of showing whole site");}
+    }
+    static void windowAndKeywordTests()throws Exception{
+        LocalDate today=LocalDate.of(2026,11,27);
+        check(!Selection.inWindow("2024-12-31",today),"publication before last year excluded");
+        check(Selection.inWindow("2025/01/01",today),"last January first included");
+        check(Selection.inWindow("2026.12.31",today),"current December last included");
+        check(!Selection.inWindow("2027-01-01",today),"future publication year excluded");
+        check(!Selection.inWindow("",today)&&!Selection.inWindow("2026-13-45",today),"unknown or invalid publication excluded");
+        check(!Selection.inWindow("2025-12-31",LocalDate.of(2027,1,1))&&Selection.inWindow("2026-01-01",LocalDate.of(2027,1,1)),"year window advances at Korean new year");
+        Notice n=recentNotice();n.title="2030학년도 역사 채용";n.published="2025-12-15";Classifier.reclassify(n,today);check(n.status==Status.MATCH,"school-year title does not override publication date");
+        n.title="2026학년도 역사 채용";n.published="2024-12-31";Classifier.reclassify(n,today);check(n.status==Status.EXCLUDED,"current school-year title cannot revive old publication");
+        n.published="";n.firstSeen=System.currentTimeMillis();n.deadline=Long.MAX_VALUE;Classifier.reclassify(n,today);check(n.status==Status.EXCLUDED,"scrape time and closing date cannot stand in for missing publication");
+        Source custom=Model.source("custom","학교","https://school.test/list","AUTO","동경","");custom.keywords=Selection.keywords("생활 지도, 면접 공고\n생활지도\nInterview");
+        check(custom.keywords.size()==3&&Classifier.titleMatches(custom,"생활지도 강사 모집")&&Classifier.titleMatches(custom,"INTERVIEW 안내"),"custom keywords use OR, ignore spaces/case and remove duplicates");
+        check(!Classifier.titleMatches(custom,"역사 교원 채용"),"custom keywords replace defaults");
+        Source copy=custom.copy();copy.keywords.clear();check(custom.keywords.size()==3,"editing source keyword copy does not mutate saved source");
+        check(!Selection.validKeywords(Selection.keywords(" , \n")),"blank keyword set rejected rather than matching everything");
+        check(custom.region.equals("기타 지역")&&Selection.region("동경").equals("기타 지역"),"legacy Tokyo region maps to other region");
+        check(Selection.regionMatches("동경",Set.of("기타 지역"))&&!Selection.regionMatches("서울",Set.of("경기","기타 지역")),"region filter distinguishes Seoul Gyeonggi and other");
+        Source changed=sen.copy();changed.keywords=List.of("교직원 채용");check(Classifier.titleMatches(changed,"교직원 채용 안내")&&!Classifier.titleMatches(changed,"역사 채용"),"education-board keywords are editable too");
+        String html="<a href='/view.do?nttSn=1'><h4>2027학년도 역사 채용</h4><span>등록일 : 2025/12/20</span><p>접수기간 2026/01/01~2026/01/07</p></a>";
+        check(BoardParser.listing(senCopyGeneric(),"https://a.test/list",html).items().get(0).published().equals("2025-12-20"),"registered date selected instead of deadline or title year");
+        Html.Node tree=Html.parse("<table><tr><th>제목</th><th>작성일</th></tr><tr><td><a href='/view.do?nttSn=1'>2027 역사 채용</a></td><td>2024.12.31</td></tr></table>");
+        Html.Node anchor=tree.all().stream().filter(x->x.tag.equals("a")).findFirst().orElseThrow();check(Selection.publishedIn(anchor).equals("2024-12-31"),"generic table publication column supported");
+        tree=Html.parse("<div><a href='/view.do?nttSn=1'>역사 채용</a><a href='/view.do?nttSn=2'><time datetime='2026-11-26'></time>다른 글</a></div>");anchor=tree.all().stream().filter(x->x.tag.equals("a")).findFirst().orElseThrow();check(Selection.publishedIn(anchor).isEmpty(),"neighboring post date never assigned to undated item");
+        tree=Html.parse("<li><a href='/view.do?nttSn=1'>역사 채용</a><time itemprop='dateModified' datetime='2026-11-27'></time></li>");anchor=tree.all().stream().filter(x->x.tag.equals("a")).findFirst().orElseThrow();check(Selection.publishedIn(anchor).isEmpty(),"modification timestamp is not a publication date");
+    }
+    static Source senCopyGeneric(){return Model.source("generic","학교","https://a.test/list","GENERIC","서울","");}
+    static String tokyoRow(int id,String title,String date){return "[[["+id+",'"+id+"',0,0],':','/front_notice.brd/_"+id+"."+id+".hash/?shell=/index.shell:225','',''],['','',0],['"+date+"','10:00',4],[],1,'"+title+"','']";}
+    static String tokyoPage(String... rows){return "<script>var Posts=[[],"+String.join(",",rows)+"];</script>";}
+    static void datedCollectionTests()throws Exception{
+        long now=Instant.parse("2026-11-27T03:00:00Z").toEpochMilli();Source source=senCopyGeneric();
+        String dated="<a href='/view.do?nttSn=1'>2027 역사 채용<span>등록일: 2024-12-31</span></a><a href='/view.do?nttSn=2'>2030 역사 채용<span>등록일: 2025-01-01</span></a>";
+        Collector c=new Collector((url,max,ref)->response(url,dated));Collector.Result result=c.collect(source,Map.of(),now);
+        check(result.notices().size()==1&&result.notices().get(0).published.equals("2025-01-01"),"collection excludes old publications and persists verified date");
+        c=new Collector((url,max,ref)->response(url,"<a href='/view.do?nttSn=1'>2026 역사 채용<p>접수기간 2026/11/28</p></a>"));result=c.collect(source,Map.of(),now);
+        check(result.notices().isEmpty()&&result.partial()&&result.errors().get(0).contains("게시일"),"undated matches excluded with visible explanation");
+        List<String> requests=new ArrayList<>();String first=tokyoPage(tokyoRow(100,"교직원 채용","2026/11/26"))+"<a href='/front_notice.brd/02..hash?shell=/index.shell:225'>2</a><a href='/front_notice.brd/066..hash?shell=/index.shell:225'>66</a>";
+        String second=tokyoPage(tokyoRow(90,"교원 채용","2024/12/31"))+"<a href='/front_notice.brd/03..hash?shell=/index.shell:225'>3</a><a href='/front_notice.brd/066..hash?shell=/index.shell:225'>66</a>";
+        c=new Collector((url,max,ref)->{requests.add(url);return response(url,Selection.tokyoPage(url)==1?first:second);});result=c.collect(tokyo,Map.of(),now);
+        check(result.notices().size()==1&&requests.size()==2&&!result.partial(),"Tokyo stops normally at old date frontier without range-limit warning");
+        check(requests.stream().noneMatch(u->u.contains("066..")),"Tokyo pagination does not jump to last archive page");
+        check(BoardParser.listing(tokyo,tokyo.url,first).items().get(0).published().equals("2026-11-26"),"Tokyo publication parsed from structured row date");
+        Source special=tokyo.copy();special.keywords=List.of("생활지도");String one=tokyoPage(tokyoRow(101,"생활지도 담당자 모집","2026/11/26"));
+        c=new Collector((url,max,ref)->response(url,one));check(c.collect(special,Map.of(),now).notices().size()==1,"Tokyo custom keyword works without hardcoded recruitment prefilter");
+        List<Link> mixed=List.of(new Link("오래된 고정글","https://a.test/1","","2024-01-01",true),new Link("현재글","https://a.test/2","","2026-01-01",false));
+        check(!Selection.oldTokyoPage(tokyo,mixed,LocalDate.of(2026,11,27)),"old pinned notices do not stop pages containing recent posts");
+        check(!Selection.oldTokyoPage(tokyo,List.of(new Link("게시일 미상","https://a.test/1")),LocalDate.of(2026,11,27)),"unknown dates never imply archive frontier reached");
     }
     static byte[] zip(String xml)throws IOException{ByteArrayOutputStream b=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(b)){z.putNextEntry(new ZipEntry("Contents/section0.xml"));z.write(xml.getBytes(StandardCharsets.UTF_8));z.closeEntry();}return b.toByteArray();}
     static void put(byte[] b,int p,int value){ByteBuffer.wrap(b,p,4).order(ByteOrder.LITTLE_ENDIAN).putInt(value);}

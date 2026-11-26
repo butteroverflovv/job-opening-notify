@@ -11,6 +11,7 @@ public final class Collector {
     private final Transport net;
     public Collector(Transport net){this.net=net;}
     public Result collect(Source source,Map<String,Notice> known,long now)throws Exception{
+        LocalDate today=java.time.Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate();
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
         Set<String> visited=new HashSet<>(),bodies=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
         List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;long stopAt=System.nanoTime()+35_000_000_000L;
@@ -23,22 +24,28 @@ public final class Collector {
                 if(!list.warning().trim().isEmpty())throw new IllegalStateException(list.warning());
                 pages++;
                 for(Link l:list.items())listings.putIfAbsent(l.url(),l);
-                for(String p:list.pages())if(!visited.contains(p))queue.add(p);
+                if(pages>1&&Selection.oldTokyoPage(source,list.items(),today)){queue.clear();break;}
+                List<String> next=Selection.nextPages(source,response.url(),list.pages());
+                if(BoardParser.kind(source).equals("TOKYO")&&next.isEmpty()&&list.pages().stream().anyMatch(p->Selection.tokyoPage(p)>Selection.tokyoPage(response.url())+1)){partial=true;errors.add("다음 페이지 주소를 확인하지 못해 일부 목록만 확인했어요.");}
+                for(String p:next)if(!visited.contains(p))queue.add(p);
             }catch(Exception e){if(pages==0)throw e;errors.add("목록 일부: "+shortError(e));partial=true;}
         }
         if(!queue.isEmpty()){partial=true;errors.add("목록 확인 범위 제한으로 일부 페이지를 확인하지 못했어요. 게시판 원문도 확인해 주세요.");}
-        List<Notice> out=new ArrayList<>();int matches=0;
+        List<Notice> out=new ArrayList<>();int matches=0,undated=0;
         for(Link link:listings.values()){
             String key=id(source,link.url());Notice old=known.get(key);
             if(!Classifier.titleMatches(source,link.title())&&old==null)continue;
             Notice n=new Notice();n.id=key;n.sourceId=source.id;n.sourceName=source.name;n.sourceUrl=source.url;n.region=source.region;
+            n.keywords=new ArrayList<>(source.keywords);n.published=Selection.date(link.published());if(n.published.isEmpty()&&old!=null)n.published=old.published;
             n.url=link.url();n.title=link.title();n.school=source.schoolHint;n.firstSeen=now;n.lastSeen=now;
             if(old!=null){n.deadline=old.deadline;n.deadlineLabel=old.deadlineLabel;}
-            Classifier.Deadline deadline=Classifier.deadline(link.summary(),LocalDate.now(Classifier.KST));
+            Classifier.Deadline deadline=Classifier.deadline(link.summary(),today);
             if(deadline.epoch()!=0){n.deadline=deadline.epoch();n.deadlineLabel=deadline.label();}
-            Classifier.reclassify(n);if(n.status==Status.MATCH)matches++;
-            out.add(n);
+            Classifier.reclassify(n,today);if(n.status==Status.MATCH)matches++;
+            if(Classifier.matches(n)&&n.published.isEmpty())undated++;
+            if(n.status==Status.MATCH||old!=null)out.add(n);
         }
+        if(undated>0){partial=true;errors.add("게시일을 확인하지 못한 "+undated+"건은 기간을 판단할 수 없어 제외했어요.");}
         return new Result(out,listings.size(),matches,partial,errors.stream().distinct().limit(15).collect(java.util.stream.Collectors.toList()));
     }
     public static String id(Source s,String url){return Model.hash(s.id+"|"+url);}
