@@ -4,8 +4,9 @@ import java.util.*;
 public final class ArrayLiteral {
     private final String text;private int p,nodes;
     private ArrayLiteral(String text,int start){this.text=text;this.p=start;}
-    public static List<?> posts(String html){
-        java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\bvar\\s+Posts\\s*=\\s*(\\[)").matcher(html);
+    public static List<?> posts(String html){return named(html,"Posts");}
+    public static List<?> named(String html,String name){
+        java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\bvar\\s+"+java.util.regex.Pattern.quote(name)+"\\s*=\\s*(\\[)").matcher(html);
         if(!m.find())return List.of();
         try{Object v=new ArrayLiteral(html,m.start(1)).value(0);return v instanceof List?(List<?>)v:List.of();}catch(IllegalArgumentException e){return List.of();}
     }

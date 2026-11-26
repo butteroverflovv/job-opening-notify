@@ -57,6 +57,9 @@ public class CoreTests {
         check(!Html.resolve(tokyo.url,"/front_notice.brd/_656.405.hash/[공고문]%20채용.hwpx").isEmpty(),"attachment brackets in legacy URLs");
         check(BoardParser.detail("https://www.goe.go.kr/","<h3>역사 기간제 채용</h3><button onclick=\"previewAjax('https://www.goe.go.kr/file.hwp','공고.hwp')\">미리보기</button>","fallback").attachments().size()==1,"Gyeonggi preview URL attachment extraction");
         check(BoardParser.detail("https://work.sen.go.kr/","<h2>채용공고</h2><h3 class='job-opening-modal-tit-area__tit'>가람중학교 역사 기간제 채용</h3>","fallback").title().contains("가람중학교"),"Seoul title excludes generic navigation heading");
+        String targetDetail="<script>var PostFiles=[[\"목표.hwpx\",\"\",\"/front_notice.brd/_123.1.hash/target.hwpx\"]];</script><table><tr><th>역사 기간제 채용</th></tr></table><div class='context_view'>목표 공고 본문입니다. 중고등부 역사 기간제교사 한 명을 모집합니다.</div>"+legacy;
+        BoardParser.Detail tokyoDetail=BoardParser.detail(tokyo.url,targetDetail,"동경한국학교 역사 기간제 채용");
+        check(tokyoDetail.body().startsWith("목표 공고")&&tokyoDetail.attachments().size()==1,"Tokyo detail uses own content and PostFiles, not related posts");
         String th="<a href='/front_notice.brd?shell=/index.shell:225&amp;mode=view&amp;num=301'>중등부 역사 기간제교사 채용</a>";
         check(BoardParser.listing(tokyo,tokyo.url,th).items().size()==1,"Tokyo ordinary board links");
         check(!BoardParser.listing(goe,goe.url,"<html>Access Denied</html>").warning().isEmpty(),"unrecognized board must fail visibly");

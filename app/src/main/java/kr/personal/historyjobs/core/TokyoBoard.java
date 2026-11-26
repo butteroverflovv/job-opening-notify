@@ -17,20 +17,20 @@ final class TokyoBoard {
         return out;
     }
     static BoardParser.Detail detail(String base,String html,String fallback){
-        List<?> posts=ArrayLiteral.posts(html);if(posts.isEmpty())return null;
-        List<String> strings=new ArrayList<>();flatten(posts,strings);
-        String body="";LinkedHashMap<String,Link> files=new LinkedHashMap<>();
-        for(String s:strings){
-            if(s.length()>body.length()&&!s.startsWith("/")&&!s.startsWith("http"))body=s;
-            String u=Html.resolve(base,s);
-            if(!u.isEmpty()&&u.contains(".brd/_")&&s.matches("(?i).*\\.(?:hwpx?|pdf)(?:[?#].*)?")){
-                String name=s.substring(s.lastIndexOf('/')+1);try{name=java.net.URLDecoder.decode(name,"UTF-8");}catch(Exception ignored){}
-                files.put(u,new Link(name,u));
+        Html.Node root=Html.parse(html);String body="",title=fallback;
+        for(Html.Node n:root.all()){
+            if(n.attr("class").matches(".*(?:^|\\s)context_view(?:\\s|$).*"))body=n.text();
+            if(n.tag.equals("th")&&n.text().length()<300&&n.text().matches(".*(?:채용|모집|임용|採用|募集).*")){
+                title=n.text();if(!title.contains("동경한국학교"))title="동경한국학교 "+title;
             }
         }
         if(body.length()<30)return null;
-        body=Html.parse(body.replace("\n","<br>")).text();
-        return new BoardParser.Detail(fallback,body,new ArrayList<>(files.values()),List.of());
+        LinkedHashMap<String,Link> files=new LinkedHashMap<>();
+        for(Object value:ArrayLiteral.named(html,"PostFiles")){
+            if(!(value instanceof List<?>))continue;List<?> row=(List<?>)value;if(row.size()<3)continue;
+            String u=Html.resolve(base,String.valueOf(row.get(2))),name=String.valueOf(row.get(0));
+            if(!u.isEmpty()&&name.matches("(?i).*\\.(?:hwpx?|pdf)$"))files.put(u,new Link(name,u));
+        }
+        return new BoardParser.Detail(title,body,new ArrayList<>(files.values()),List.of());
     }
-    private static void flatten(Object v,List<String> out){if(v instanceof String)out.add((String)v);else if(v instanceof List<?>)for(Object x:(List<?>)v)flatten(x,out);}
 }
