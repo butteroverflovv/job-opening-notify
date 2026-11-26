@@ -1,13 +1,15 @@
-import urllib.request,urllib.parse,re,json,pathlib,time
+import urllib.request,urllib.parse,re,json,pathlib,time,http.cookiejar
+opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 out=pathlib.Path('science-diagnostics');out.mkdir(exist_ok=True)
 urls={
 'gsh-list':'https://gs-h.goesw.kr/gs-h/na/ntt/selectNttList.do?mi=1275&bbsId=1088',
 'sshs-list':'https://sshs.sen.hs.kr/75052/subMenu.do'}
 results=[]
-def fetch(name,url):
+def fetch(name,url,data=None,referer=None):
  try:
-  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1'})
-  with urllib.request.urlopen(req,timeout=20) as r:
+  req=urllib.request.Request(url,data=data,headers={'User-Agent':'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1'})
+  if referer:req.add_header('Referer',referer)
+  with opener.open(req,timeout=20) as r:
    b=r.read(4000001);charset=r.headers.get_content_charset() or 'utf-8';s=b.decode(charset,errors='replace');final=r.url
   (out/(name+'.html')).write_text(s)
   row={'name':name,'url':url,'final_url':final,'bytes':len(b),'scripts':re.findall(r'<script[^>]+src=["\']([^"\']+)',s,re.I),'frames':re.findall(r'<iframe[^>]+src=["\']([^"\']+)',s,re.I)}
@@ -24,4 +26,16 @@ for name,url in urls.items():
  for i,raw in enumerate(row.get('frames',[])[:2]):
   u=urllib.parse.urljoin(base,raw)
   if urllib.parse.urlsplit(u).netloc==urllib.parse.urlsplit(base).netloc:fetch(name+'-frame-'+str(i),u)
+(out/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
+
+s=pathlib.Path(out/'sshs-list.html').read_text()
+fields=dict(re.findall(r'<input[^>]*name="([^"]+)"[^>]*value="([^"]*)"',s,re.I))
+fields={k:v for k,v in fields.items() if k in ['bbsId','bbsTyCode','customRecordCountPerPage','pageIndex','searchCondition','searchKeyword','checkNttId','mvmnReturnUrl']}
+query=urllib.parse.urlencode(fields)
+endpoint='https://sshs.sen.hs.kr/dggb/module/board/selectBoardListAjax.do'
+fetch('sshs-ajax-get',endpoint+'?'+query,referer=urls['sshs-list'])
+time.sleep(1)
+fetch('sshs-ajax-post',endpoint,query.encode(),urls['sshs-list'])
+fetch('gsh-page2',urls['gsh-list']+'&currPage=2')
+fetch('gsh-detail','https://gs-h.goesw.kr/gs-h/na/ntt/selectNttInfo.do?mi=1275&bbsId=1088&nttSn=599447')
 (out/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
