@@ -1,6 +1,22 @@
-# 교원 채용공고 알리미 · Android 0.1.3
+# 교원 채용공고 알리미 · Android 0.1.4
 
 서울교육일자리포털·경기도교육청·동경한국학교와 추가한 게시판에서 **제목에 ‘역사’가 들어 있는 공고만** 모아보는 개인용 앱입니다.
+
+## 0.1.4 화면 개편
+
+Montage의 목록 카드·검색창·세그먼트·하단 탐색 디자인을 참고해 네이티브 Android 화면을 개편했습니다. 외부 UI 라이브러리나 웹뷰 앱으로 바꾸지 않았습니다.
+
+- 공고·게시판·설정을 하단 메뉴로 이동
+- 흰색·연회색 바탕과 갈색 포인트, 통일된 버튼·여백·텍스트 위계
+- 검색 아이콘·검색어 지우기, 전체/관심 세그먼트, 북마크 버튼
+- 지역·새 공고·마감 배지와 간결한 목록 카드
+- 원문 열기를 하단에 고정한 상세 창
+- 게시판 상태와 설정 항목을 그룹으로 정리
+- 기존 승인 아이콘·제목 필터·데이터 형식·서명키 유지
+
+참고: https://montage.wanted.co.kr/docs/components
+
+에뮬레이터에서 기본 화면과 320dp/글자 130% 화면의 탐색·검색·관심 저장·마감 필터·게시판 및 예약 스위치를 검사하고 스크린샷을 남깁니다. 테스트용 공고는 androidTest에만 들어가며 설치용 release APK에는 포함되지 않습니다.
 
 ## 0.1.3 아이콘 적용
 
@@ -43,7 +59,7 @@
 
 ## 업데이트
 
-0.1.1·0.1.2 → 0.1.3은 같은 고정 서명으로 덮어 설치할 수 있습니다.
+0.1.1·0.1.2·0.1.3 → 0.1.4은 같은 고정 서명으로 덮어 설치할 수 있습니다.
 
 0.1.0의 임시 서명키 캐시 경로가 실제 생성 경로와 달라 키가 남지 않았습니다. 따라서 **0.1.0에서 0.1.1로는 덮어 설치할 수 없습니다.**
 
@@ -60,7 +76,7 @@
 
 Android 8(API 26) 이상을 대상으로 작성했습니다. APK를 휴대폰에서 열고 필요하면 해당 브라우저/파일 앱의 설치를 허용합니다. 앱을 열고 알림 권한을 허용한 뒤 ‘지금 확인’을 누릅니다.
 
-GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.3-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
+GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.4-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
 
 Android Studio 또는 JDK 17 + Android SDK 35 환경:
 
@@ -75,7 +91,7 @@ Android Studio 또는 JDK 17 + Android SDK 35 환경:
 서명키와 비밀번호는 공개 저장소·Actions artifact에 올리지 않습니다. 향후 APK를 서명할 때는 별도로 보관한 개인 키 파일과 설정을 사용합니다.
 
 ```sh
-python3 tools/sign_apk.py --input history-jobs-0.1.3-unsigned.apk --output history-jobs-0.1.3.apk --signer apksigner.jar --credentials /개인경로/signing.json
+python3 tools/sign_apk.py --input history-jobs-0.1.4-unsigned.apk --output history-jobs-0.1.4.apk --signer apksigner.jar --credentials /개인경로/signing.json
 ```
 
 `signing.json`은 같은 폴더의 `history-jobs.p12` 경로, 키 별칭과 암호를 담는 개인 설정 파일입니다. 배포 전 인증서 지문이 이전 제공 APK와 같은지 확인합니다. 키 보관본은 공개 저장소에 포함하지 않습니다.
