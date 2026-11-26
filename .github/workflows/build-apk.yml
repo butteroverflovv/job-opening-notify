@@ -23,17 +23,23 @@ jobs:
       - name: Probe public source boards
         continue-on-error: true
         run: python3 tools/probe_sources.py
+      - name: Verify public school adapters
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/school-adapter-classes
+          javac -encoding UTF-8 -d /tmp/school-adapter-classes app/src/main/java/kr/personal/historyjobs/core/*.java tools/SchoolAdapterCheck.java
+          java -cp /tmp/school-adapter-classes SchoolAdapterCheck
       - name: Build and lint
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleRelease :app:lintRelease
-          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.7-unsigned.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.8-unsigned.apk
           cp "${ANDROID_HOME}/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: history-jobs-0.1.7-unsigned
+          name: history-jobs-0.1.8-unsigned
           path: |
-            history-jobs-0.1.7-unsigned.apk
+            history-jobs-0.1.8-unsigned.apk
             apksigner.jar
           retention-days: 30
       - name: Save build and source diagnostics
@@ -43,6 +49,7 @@ jobs:
           name: history-jobs-diagnostics
           path: |
             diagnostics/
+            science-diagnostics/
             app/build/reports/lint-results-release.*
           retention-days: 7
 

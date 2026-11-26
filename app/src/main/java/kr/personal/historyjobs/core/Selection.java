@@ -34,7 +34,7 @@ public final class Selection {
         for(int depth=0;scope!=null&&depth<5;depth++,scope=scope.parent){
             if(scope.tag.equals("table")||scope.tag.equals("body")||scope.tag.equals("root"))break;
             if(scope.text().length()>5000)break;
-            if(scope!=link){long anchors=scope.all().stream().filter(n->n.tag.equals("a")&&!n.attr("href").isEmpty()&&!n.attr("href").startsWith("#")&&!BoardParser.isAttachment(n.attr("href"))).count();if(anchors>1)break;}
+            if(scope!=link&&!scope.tag.equals("tr")&&!scope.tag.equals("li")){long anchors=scope.all().stream().filter(n->n.tag.equals("a")&&!n.attr("href").isEmpty()&&!n.attr("href").startsWith("#")&&!BoardParser.isAttachment(n.attr("href"))).count();if(anchors>1)break;}
             Matcher labeled=Pattern.compile("(?:등록일(?:자)?|작성일(?:자)?|게시일(?:자)?|게시날짜)\\s*[:：]?\\s*((?:19|20)[0-9]{2}\\s*[./년-]\\s*[0-9]{1,2}\\s*[./월-]\\s*[0-9]{1,2})").matcher(scope.text());
             if(labeled.find()){String d=date(labeled.group(1));if(!d.isEmpty())return d;}
             for(Html.Node n:scope.all()){

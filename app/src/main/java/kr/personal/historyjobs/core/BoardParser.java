@@ -14,14 +14,17 @@ public final class BoardParser {
     private static final Pattern QUOTED=Pattern.compile("['\"](\\d{2,})['\"]");
     public static Listing listing(Source source,String page,String html) {
         Html.Node root=Html.parse(html);Map<String,Link> links=new LinkedHashMap<>();LinkedHashSet<String> pages=new LinkedHashSet<>();
+        String security=SchoolBoards.securityMessage(root);if(!security.isEmpty())return new Listing(List.of(),List.of(),false,security);
+        if(kind(source).equals("SCHOOL_SEN")){String request=SchoolBoards.seoulRequest(page,html,root,false);if(!request.isEmpty())return new Listing(List.of(),List.of(request),false,"");}
         for(Html.Node n:root.all()){
+            if(SchoolBoards.insideScript(n))continue;
             String raw=n.attr("href");if(raw.trim().isEmpty())raw=n.attr("data-url");if(raw.trim().isEmpty())raw=n.attr("data-href");
             String action=n.attr("onclick");String text=n.text().replaceAll("\\s+"," ").trim();
             if(text.length()>2000)continue;
-            String url=Html.resolve(page,raw);
+            String schoolUrl=SchoolBoards.recordUrl(source,page,n);String url=schoolUrl.isEmpty()?Html.resolve(page,raw):schoolUrl;
             String handler=(raw+" "+action).replace("&amp;","&");
-            if(url.trim().isEmpty()||raw.startsWith("javascript:"))url=fromAction(source,page,handler);
-            if(!url.trim().isEmpty()&&Html.sameHost(source.url,url)&&isDetail(source,url)&&!text.trim().isEmpty()){
+            if(schoolUrl.isEmpty()&&(url.trim().isEmpty()||raw.startsWith("javascript:")))url=fromAction(source,page,handler);
+            if(!url.trim().isEmpty()&&(Html.sameHost(source.url,url)||Html.sameHost(page,url))&&isDetail(source,url)&&!text.trim().isEmpty()){
                 Link old=links.get(url);
                 if(old==null||old.title().equals("상세보기")||old.title().equals("보기")){
                     String title=text;
@@ -41,7 +44,7 @@ public final class BoardParser {
             } else if(!url.trim().isEmpty()&&Html.sameHost(page,url)&&!url.equals(page)&&isPage(raw,text))pages.add(url);
             if(handler.matches("(?is).*(?:page|paging|goPage|movePage|searchPage).*")){
                 Matcher m=Pattern.compile("(?i)(?:goPaging|opMovePage|fnPage|goPage|movePage|searchPage|page|paging)[\\w]*\\s*\\(\\s*['\"]?(\\d{1,3})").matcher(handler);
-                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=kind(source).equals("SEOUL")?"q_currPage":kind(source).equals("GYEONGGI")?"currPage":"page";pages.add(query(page,key,String.valueOf(p)));}}
+                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=SchoolBoards.pageKey(source);pages.add(query(page,key,String.valueOf(p)));}}
             }
         }
         if(kind(source).equals("TOKYO")){
@@ -54,6 +57,8 @@ public final class BoardParser {
         return new Listing(new ArrayList<>(links.values()),new ArrayList<>(pages),empty,warn);
     }
     public static String kind(Source s){
+        if((s.kind.equals("AUTO")||s.kind.equals("GENERIC")||s.kind.equals("GYEONGGI"))&&SchoolBoards.ntt(s.url))return "SCHOOL_NTT";
+        if((s.kind.equals("AUTO")||s.kind.equals("GENERIC")||s.kind.equals("SEOUL"))&&SchoolBoards.senMenu(s.url))return "SCHOOL_SEN";
         if(!s.kind.equals("AUTO"))return s.kind;
         if(s.url.contains("work.sen.go.kr"))return "SEOUL";
         if(s.url.contains("goe.go.kr/recruit"))return "GYEONGGI";
@@ -62,6 +67,8 @@ public final class BoardParser {
     }
     private static boolean isDetail(Source s,String url){
         return switch(kind(s)){
+            case "SCHOOL_NTT" -> SchoolBoards.ntt(url)&&url.contains("selectNttInfo.do")&&SchoolBoards.query(url).getOrDefault("nttSn","").matches("[0-9]{1,20}");
+            case "SCHOOL_SEN" -> SchoolBoards.query(url).getOrDefault("nttId","").matches("[0-9]{1,20}")&&(url.contains("/subMenu.do?")||url.contains("/dggb/module/board/selectBoardDetailAjax.do?"));
             case "SEOUL" -> url.contains("BD_selectRecDetail")&&url.contains("q_rcrtSn=");
             case "GYEONGGI" -> url.contains("hnfpPbancInfoView")&&url.contains("pbancSn=");
             case "TOKYO" -> url.contains("front_notice.brd")&&url.matches(".*[?&](?:num|no|seq|id|nttSn)=.*") || url.matches(".*[?&](?:articleNo|nttSn)=.*");

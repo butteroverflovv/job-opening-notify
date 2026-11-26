@@ -1,6 +1,22 @@
-# 교원 채용공고 알리미 · Android 0.1.7
+# 교원 채용공고 알리미 · Android 0.1.8
 
 게시판마다 정한 키워드가 제목에 들어 있고, **게시일이 작년 1월 1일~올해 12월 31일**인 채용공고를 모읍니다. 공고를 누르면 첨부파일을 제외한 본문 텍스트를 앱 안에서 읽을 수 있습니다.
+
+## 0.1.8 학교 게시판 수집 보완
+
+- 경기과고 등 `/na/ntt/selectNttList.do` 형식의 제목 `data-id`를 읽고 게시물 주소를 구성합니다. 게시판 ID·메뉴 ID를 보존하고 `currPage`로 다음 목록을 확인합니다.
+- 서울과고 등 서울 학교의 숫자 메뉴 `/subMenu.do`에서 `boardFrm`의 공개 게시판 값을 읽고, 사이트가 사용하는 목록 요청으로 실제 공지 목록을 가져옵니다. `fnView`의 숫자 글 번호와 표의 작성일을 읽으며 `pageIndex`로 목록을 확인합니다.
+- 두 형식은 주소로 자동 인식합니다. 기존 등록을 삭제하거나 다시 추가할 필요가 없습니다. 일반 게시판 또는 해당 지역 교육청 방식을 선택했던 등록도 알려진 학교 주소에서는 학교 형식으로 읽습니다.
+- 초기 메뉴와 목록·본문 요청 사이에 필요한 익명 세션 쿠키를 호스트·경로·Secure 조건에 따라 메모리에서 유지합니다. 브라우저의 로그인 쿠키를 가져오지 않습니다.
+- JavaScript 소스 내부의 `<` 비교식과 HTML 문자열이 실제 게시판 구조를 훼손하지 않도록 스크립트 영역을 HTML 파싱에서 제외합니다. 원격 JavaScript는 실행하지 않습니다.
+- 학교 표의 첨부 아이콘 때문에 등록일이 누락되는 경우와 본문 영역 인식을 보완했습니다. 첨부파일·문서 미리보기는 계속 요청하지 않습니다.
+- 사용자 키워드와 작년/올해 게시일 규칙은 유지합니다. **‘교원 선발’은 ‘교원 임용후보자 공개선발’과 연속 문구가 달라 일치하지 않습니다.** 이 제목에는 ‘교원’ 또는 ‘공개선발’ 등을 키워드로 설정하세요.
+- 실제 경기과고/서울과고 목록과 본문을 앱 통신 코드로 검사했습니다. 외부 접속 제한은 계속 오류로 표시하며 수집 0건 성공으로 감추지 않습니다.
+
+확인한 주소:
+
+- https://gs-h.goesw.kr/gs-h/na/ntt/selectNttList.do?mi=1275&bbsId=1088
+- https://sshs.sen.hs.kr/75052/subMenu.do
 
 ## 0.1.7 필터 버튼 위치 변경
 
@@ -89,7 +105,7 @@ Montage의 목록 카드·검색창·세그먼트·하단 탐색 디자인을 �
 
 ## 업데이트
 
-0.1.1·0.1.2·0.1.3·0.1.4·0.1.5·0.1.6 → 0.1.7은 같은 고정 서명으로 덮어 설치할 수 있습니다.
+0.1.1·0.1.2·0.1.3·0.1.4·0.1.5·0.1.6·0.1.7 → 0.1.8은 같은 고정 서명으로 덮어 설치할 수 있습니다.
 
 0.1.0의 임시 서명키 캐시 경로가 실제 생성 경로와 달라 키가 남지 않았습니다. 따라서 **0.1.0에서 0.1.1로는 덮어 설치할 수 없습니다.**
 
@@ -106,7 +122,7 @@ Montage의 목록 카드·검색창·세그먼트·하단 탐색 디자인을 �
 
 Android 8(API 26) 이상을 대상으로 작성했습니다. APK를 휴대폰에서 열고 필요하면 해당 브라우저/파일 앱의 설치를 허용합니다. 앱을 열고 알림 권한을 허용한 뒤 ‘지금 확인’을 누릅니다.
 
-GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.7-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
+GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.8-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
 
 Android Studio 또는 JDK 17 + Android SDK 35 환경:
 
@@ -121,7 +137,7 @@ Android Studio 또는 JDK 17 + Android SDK 35 환경:
 서명키와 비밀번호는 공개 저장소·Actions artifact에 올리지 않습니다. 향후 APK를 서명할 때는 별도로 보관한 개인 키 파일과 설정을 사용합니다.
 
 ```sh
-python3 tools/sign_apk.py --input history-jobs-0.1.7-unsigned.apk --output history-jobs-0.1.7.apk --signer apksigner.jar --credentials /개인경로/signing.json
+python3 tools/sign_apk.py --input history-jobs-0.1.8-unsigned.apk --output history-jobs-0.1.8.apk --signer apksigner.jar --credentials /개인경로/signing.json
 ```
 
 `signing.json`은 같은 폴더의 `history-jobs.p12` 경로, 키 별칭과 암호를 담는 개인 설정 파일입니다. 배포 전 인증서 지문이 이전 제공 APK와 같은지 확인합니다. 키 보관본은 공개 저장소에 포함하지 않습니다.
@@ -156,7 +172,7 @@ python3 tools/test_core.py
 | 파일 | 역할 |
 | --- | --- |
 | `core/Classifier.java` / `core/Selection.java` | 게시판별 키워드, 등록일 기간, 지역, 재분류 |
-| `core/Collector.java` | 목록 페이지만 수집, 게시판별 제목 조건 적용 |
+| `core/Collector.java` / `core/SchoolBoards.java` | 목록 및 학교 CMS 공개 목록 요청, 게시판별 제목 조건 적용 |
 | `core/ArticleReader.java` | 클릭 시 본문 텍스트 열람, 첨부/뷰어 요청 제외 |
 | `core/BoardParser.java` | 서울·경기·일반 게시판 링크와 제목 해석 |
 | `core/TokyoBoard.java` / `core/ArrayLiteral.java` | 동경학교 구형 목록 데이터 해석. 스크립트 실행 없음 |

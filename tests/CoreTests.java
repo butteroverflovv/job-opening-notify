@@ -93,6 +93,7 @@ public class CoreTests {
         articleTests();
         windowAndKeywordTests();
         datedCollectionTests();
+        SchoolBoardTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
