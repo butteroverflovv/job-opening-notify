@@ -46,6 +46,10 @@ public class CoreTests {
         String gh="<main><a href=\"javascript:fn_pbancInfoView('56789')\">가람고등학교 역사 기간제교사 채용</a></main>";
         BoardParser.Listing gl=BoardParser.listing(goe,goe.url,gh);
         check(gl.items().size()==1&&gl.items().get(0).url().contains("pbancSn=56789"),"Gyeonggi javascript detail links");
+        check(BoardParser.listing(goe,goe.url,"<a href='#wrap' onclick='goPaging(2)'>2</a>").pages().get(0).contains("currPage=2"),"real Gyeonggi pagination parameter");
+        check(BoardParser.listing(sen,sen.url,"<a href='?q_CurrPage=2' onclick='opMovePage(2);return false;'>2<span>페이지 이동</span></a>").pages().stream().anyMatch(x->x.contains("q_currPage=2")&&x.contains("q_srchJob=")),"Seoul pagination retains job filters");
+        check(BoardParser.listing(goe,goe.url,"<a href=\"javascript:goView('67178')\"><div class='cont_top'>가람중학교 조회수 1</div><p class='cont_tit'>마감임박 역사 기간제 채용</p></a>").items().get(0).title().equals("가람중학교 역사 기간제 채용"),"stable title from real card structure");
+        check(BoardParser.listing(tokyo,tokyo.url,"<h1>사용제약에 따른 안내</h1>").warning().contains("사용제약"),"Tokyo restriction page reported explicitly");
         String th="<a href='/front_notice.brd?shell=/index.shell:225&amp;mode=view&amp;num=301'>중등부 역사 기간제교사 채용</a>";
         check(BoardParser.listing(tokyo,tokyo.url,th).items().size()==1,"Tokyo ordinary board links");
         check(!BoardParser.listing(goe,goe.url,"<html>Access Denied</html>").warning().isEmpty(),"unrecognized board must fail visibly");

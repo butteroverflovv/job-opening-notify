@@ -17,7 +17,7 @@ public final class BoardParser {
         for(Html.Node n:root.all()){
             String raw=n.attr("href");if(raw.trim().isEmpty())raw=n.attr("data-url");if(raw.trim().isEmpty())raw=n.attr("data-href");
             String action=n.attr("onclick");String text=n.text().replaceAll("\\s+"," ").trim();
-            if(text.length()>350)continue;
+            if(text.length()>2000)continue;
             String url=Html.resolve(page,raw);
             String handler=(raw+" "+action).replace("&amp;","&");
             if(url.trim().isEmpty()||raw.startsWith("javascript:"))url=fromAction(source,page,handler);
@@ -25,6 +25,13 @@ public final class BoardParser {
                 Link old=links.get(url);
                 if(old==null||old.title().equals("상세보기")||old.title().equals("보기")){
                     String title=text;
+                    for(Html.Node child:n.all()){
+                        if(child.attr("class").matches(".*(?:list_title|cont_tit|board_title|subject).*" )&&!child.text().trim().isEmpty()){
+                            title=child.text().replaceAll("^(?:마감임박|접수중|NEW)\\s*", "").trim();
+                            String school=Classifier.school(text);if(!school.isEmpty()&&!title.contains(school))title=school+" "+title;
+                            break;
+                        }
+                    }
                     if(text.equals("상세보기")||text.equals("보기")){
                         Html.Node box=n.parent;
                         for(int k=0;k<4&&box!=null;k++,box=box.parent){String t=box.text();if(t.contains("채용")&&t.length()<1800){title=t.replaceAll("\\s+"," ");break;}}
@@ -33,11 +40,12 @@ public final class BoardParser {
                 }
             } else if(!url.trim().isEmpty()&&Html.sameHost(page,url)&&!url.equals(page)&&isPage(raw,text))pages.add(url);
             if(handler.matches("(?is).*(?:page|paging|goPage|movePage|searchPage).*")){
-                Matcher m=Pattern.compile("(?:Page|page|paging)[\\w]*\\s*\\(\\s*['\"]?(\\d{1,3})").matcher(handler);
-                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=kind(source).equals("SEOUL")?"q_currPage":kind(source).equals("GYEONGGI")?"pageIndex":"page";pages.add(query(page,key,String.valueOf(p)));}}
+                Matcher m=Pattern.compile("(?i)(?:goPaging|opMovePage|fnPage|goPage|movePage|searchPage|page|paging)[\\w]*\\s*\\(\\s*['\"]?(\\d{1,3})").matcher(handler);
+                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=kind(source).equals("SEOUL")?"q_currPage":kind(source).equals("GYEONGGI")?"currPage":"page";pages.add(query(page,key,String.valueOf(p)));}}
             }
         }
         String body=root.text();boolean empty=body.matches("(?s).*(?:등록된\\s*(?:게시물|공고|글|자료)(?:이|가)?\\s*없|검색(?:된|결과| 결과).*없|조회된.*없|검색건수\\s*0\\s*건).*" );
+        if(body.contains("사용제약에 따른 안내"))return new Listing(List.of(),List.of(),false,"사이트에서 사용제약 안내를 반환했어요. 원문 주소·접근 상태를 확인해 주세요.");
         String warn=links.isEmpty()&&!empty?"공고 링크를 해석하지 못했어요. 게시판 구조 또는 접근 제한을 확인해 주세요.":"";
         return new Listing(new ArrayList<>(links.values()),new ArrayList<>(pages),empty,warn);
     }

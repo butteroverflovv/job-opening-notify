@@ -37,7 +37,7 @@ public final class Model {
     }
     public static List<Source> defaults() {
         List<Source> out=new ArrayList<>();
-        out.add(source("sen","서울교육일자리포털","https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd002&jobCategory=jd002001&jobDuty=all0","SEOUL","서울",""));
+        out.add(source("sen","서울교육일자리포털","https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd002&jobCategory=jd002001&jobDuty=all0&q_tabId=jobTab&q_srchJob=jd002,%EA%B3%84%EC%95%BD%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001,%EA%B8%B0%EA%B0%84%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001-all,%EC%A0%84%EC%B2%B4","SEOUL","서울",""));
         out.add(source("goe","경기도교육청","https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancList.do?mi=10502","GYEONGGI","경기",""));
         out.add(source("tokyo","동경한국학교","http://www.tokos.ed.jp/front_notice.brd?shell=/index.shell:225","TOKYO","동경","동경한국학교"));
         return out;
