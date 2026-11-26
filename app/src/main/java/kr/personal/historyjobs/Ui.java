@@ -11,7 +11,7 @@ import android.widget.*;
 /** Native, dependency-free presentation primitives inspired by Montage. */
 final class Ui {
     static final int WHITE=0xffffffff, INK=0xff171719, SECONDARY=0xff515157,
-            MUTED=0xff85858c, LINE=0xffebebef, FILL=0xfff7f7f8,
+            MUTED=0xff74747c, LINE=0xffebebef, FILL=0xfff7f7f8,
             BROWN=0xff7b533e, TINT=0xfff6f0ec, NEGATIVE=0xffb5473c;
     static int dp(Context c,float n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
     static GradientDrawable shape(Context c,int color,int border,float radius){

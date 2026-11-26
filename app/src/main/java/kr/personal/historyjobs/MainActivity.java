@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
         if(tab==0)noticesScreen();else if(tab==1)sourcesScreen();else settingsScreen();
         bottomNavigation=col();Ui.divider(this,bottomNavigation);LinearLayout nav=row();nav.setPadding(dp(8),dp(4),dp(8),dp(4));
         String[] labels={"공고","게시판","설정"},icons={"list","boards","settings"},tags={"nav_notices","nav_sources","nav_settings"};
-        for(int i=0;i<3;i++){final int target=i;int color=tab==i?ACCENT:MUTED;LinearLayout item=col();item.setGravity(Gravity.CENTER);item.setPadding(dp(4),dp(6),dp(4),dp(6));item.setMinimumHeight(dp(60));item.setBackground(Ui.touch(this,BG,0,12));item.setContentDescription(labels[i]);item.setTag(tags[i]);item.setSelected(tab==i);item.addView(Ui.icon(this,icons[i],color),new LinearLayout.LayoutParams(dp(24),dp(24)));space(item,5);item.addView(bold(labels[i],11,color));item.setOnClickListener(v->{tab=target;render();});nav.addView(item,new LinearLayout.LayoutParams(0,-2,1));}
+        for(int i=0;i<3;i++){final int target=i;int color=tab==i?ACCENT:MUTED;LinearLayout item=col();item.setGravity(Gravity.CENTER);item.setPadding(dp(4),dp(6),dp(4),dp(6));item.setMinimumHeight(dp(60));item.setBackground(Ui.touch(this,BG,0,12));item.setContentDescription(labels[i]);item.setTag(tags[i]);item.setSelected(tab==i);item.addView(Ui.icon(this,icons[i],color),new LinearLayout.LayoutParams(dp(24),dp(24)));space(item,5);TextView navLabel=bold(labels[i],11,color);navLabel.setGravity(Gravity.CENTER);item.addView(navLabel);item.setOnClickListener(v->{tab=target;render();});nav.addView(item,new LinearLayout.LayoutParams(0,-2,1));}
         bottomNavigation.addView(nav);root.addView(bottomNavigation);if(Build.VERSION.SDK_INT>=30)root.requestApplyInsets();
     }
     private void noticesScreen(){
@@ -125,7 +125,7 @@ public class MainActivity extends Activity {
         }
     }
     private void detail(Notice n){
-        store.markRead(n.id);Dialog dialog=new Dialog(this);LinearLayout sheet=col();sheet.setPadding(dp(24),dp(10),dp(24),dp(24));sheet.setBackground(Ui.shape(this,BG,0,24));
+        store.markRead(n.id);Dialog dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout sheet=col();sheet.setPadding(dp(24),dp(10),dp(24),dp(24));sheet.setBackground(Ui.shape(this,BG,0,24));
         View handle=new View(this);handle.setBackground(Ui.shape(this,0xffd9d9de,0,2));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER;sheet.addView(handle,hp);space(sheet,6);
         LinearLayout top=row();top.addView(badge(n.region.trim().isEmpty()?n.sourceName:n.region,false));top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));top.addView(Ui.iconButton(this,"close","닫기",MUTED,dialog::dismiss));sheet.addView(top);
         ScrollView scroll=new ScrollView(this);LinearLayout body=col();body.setPadding(0,dp(8),0,dp(20));body.addView(bold(n.title,23,INK));space(body,12);body.addView(text(n.sourceName+" · "+n.region,13,Ui.SECONDARY));space(body,24);

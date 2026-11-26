@@ -43,7 +43,7 @@ public final class UiSmokeRunner extends Instrumentation {
     private void main(Runnable r){AtomicReference<Throwable> error=new AtomicReference<>();runOnMainSync(()->{try{r.run();}catch(Throwable t){error.set(t);}});if(error.get()!=null)throw new AssertionError(error.get());}
     private void idle(){waitForIdleSync();SystemClock.sleep(250);}
     private View find(String tag){return activity.getWindow().getDecorView().findViewWithTag(tag);}
-    private void click(String tag){main(()->{View v=find(tag);if(v==null)throw new AssertionError("Missing "+tag);if(!v.performClick())throw new AssertionError("Cannot click "+tag);});idle();}
+    private void click(String tag){main(()->{View v=find(tag);if(v==null)throw new AssertionError("Missing "+tag);if(!v.isEnabled()||!v.isClickable())throw new AssertionError("Cannot click "+tag);v.performClick();});idle();}
     private void expect(String tag,boolean present){main(()->{if((find(tag)!=null)!=present)throw new AssertionError("Unexpected presence "+tag);});}
     private void visible(String tag){main(()->{View v=find(tag);android.graphics.Rect rect=new android.graphics.Rect();if(v==null||!v.getGlobalVisibleRect(rect)||rect.height()<v.getHeight())throw new AssertionError("Clipped control "+tag);});}
     private void capture(String name)throws Exception{idle();Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new IOException("Screenshot unavailable");try(OutputStream out=new FileOutputStream(new File(screenshots,name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}finally{image.recycle();}}
