@@ -29,6 +29,17 @@ PASS unknown closing time disclosed
 PASS Seoul javascript detail links
 PASS pagination discovery
 PASS Gyeonggi javascript detail links
+PASS real Gyeonggi pagination parameter
+PASS Seoul pagination retains job filters
+PASS stable title from real card structure
+PASS Tokyo restriction page reported explicitly
+PASS legacy data never executes JavaScript
+PASS Tokyo legacy array recruitment records
+PASS Tokyo path pagination
+PASS attachment brackets in legacy URLs
+PASS Gyeonggi preview URL attachment extraction
+PASS Seoul title excludes generic navigation heading
+PASS Tokyo detail uses own content and PostFiles, not related posts
 PASS Tokyo ordinary board links
 PASS unrecognized board must fail visibly
 PASS explicit empty list supported
@@ -53,4 +64,4 @@ PASS transient failure preserves previous confirmed item
 PASS failed detail retained for review
 PASS blocked list is not an empty success
 
-50 checks passed
+61 checks passed
