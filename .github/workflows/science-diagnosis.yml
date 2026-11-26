@@ -14,8 +14,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Save public HTML and referenced school scripts
+      - name: Save public list and body HTML
         run: python3 tools/probe_science_schools.py
+      - name: Verify app transport and school adapters
+        run: |
+          mkdir -p /tmp/science-classes
+          javac -encoding UTF-8 -d /tmp/science-classes app/src/main/java/kr/personal/historyjobs/core/*.java tools/SchoolAdapterCheck.java
+          java -cp /tmp/science-classes SchoolAdapterCheck
       - uses: actions/upload-artifact@v4
         if: always()
         with:

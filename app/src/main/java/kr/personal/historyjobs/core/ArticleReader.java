@@ -26,7 +26,7 @@ public final class ArticleReader {
                 if(isFileUrl(lastUrl)||!htmlType(r.mime()))throw new IOException("첨부파일은 가져오지 않아요. 원문 페이지에서 확인해 주세요");
                 String html=r.text();Part p;
                 if(r.mime().toLowerCase(Locale.ROOT).startsWith("text/plain")&&!html.matches("(?s).*<[A-Za-z][^>]*>.*"))p=new Part(Html.clean(html),List.of(),false);
-                else p=parse(lastUrl,html);
+                else {String request=SchoolBoards.articleRequest(lastUrl,html);if(!request.isEmpty()&&!visited.contains(request)){queue.addFirst(request);continue;}p=parse(lastUrl,html);}
                 if(!p.body().isEmpty())texts.add(p.body());imageOnly|=p.imageOnly();
                 if(p.body().length()>=50)break;
                 for(String frame:p.frames())if(Html.sameHost(lastUrl,frame)&&!visited.contains(frame))queue.add(frame);
@@ -44,6 +44,7 @@ public final class ArticleReader {
             if(suppressed(n)||!Set.of("article","section","div","td","main").contains(n.tag))continue;
             String raw=(n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT),token=raw.replaceAll("[-_\\s]","");int score=0;
             if(token.contains("contextview"))score=800;
+            else if(token.contains("bbsvcont")||token.contains("bbsvcn"))score=780;
             else if(token.contains("jobdetailareacon"))score=750;
             else if(raw.contains("recruit_cont_box")&&previousHeading(n).contains("상세요강"))score=750;
             else if(token.matches(".*(?:viewcont(?:ent)?|viewcon|boardcontent|nttcn|boardtxt|boardcn|bbscontent|bbscont|contentbody|contentview|readcontent|boardtext).*"))score=400;

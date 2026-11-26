@@ -7,6 +7,7 @@ import java.util.regex.*;
 /** Small bounded HTML reader. Does not execute remote scripts. */
 public final class Html {
     private Html() {}
+    private static final Pattern RAW=Pattern.compile("(?is)<(script|style|noscript)\\b[^>]*>.*?</\\1\\s*>");
     private static final Pattern TOKEN=Pattern.compile("<!--(?s:.*?)-->|<![^>]*>|<(/?)([A-Za-z][\\w:-]*)([^>]*)>|([^<]+)");
     private static final Pattern ATTR=Pattern.compile("([\\w:-]+)(?:\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+)))?");
     private static final Set<String> VOID=Set.of("area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr");
@@ -35,7 +36,7 @@ public final class Html {
     public static Node parse(String html) {
         if(html.length()>4_000_000)throw new IllegalArgumentException("페이지가 너무 큽니다");
         Node root=new Node("root");ArrayDeque<Node> stack=new ArrayDeque<>();stack.push(root);
-        Matcher m=TOKEN.matcher(html);int count=0;
+        Matcher m=TOKEN.matcher(RAW.matcher(html).replaceAll(""));int count=0;
         while(m.find()){
             if(++count>120_000)throw new IllegalArgumentException("페이지 구조가 너무 큽니다");
             if(m.group(4)!=null){Node n=new Node("#text");n.raw.append(decode(m.group(4)));n.parent=stack.peek();stack.peek().children.add(n);continue;}
