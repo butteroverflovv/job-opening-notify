@@ -39,3 +39,12 @@ fetch('sshs-ajax-post',endpoint,query.encode(),urls['sshs-list'])
 fetch('gsh-page2',urls['gsh-list']+'&currPage=2')
 fetch('gsh-detail','https://gs-h.goesw.kr/gs-h/na/ntt/selectNttInfo.do?mi=1275&bbsId=1088&nttSn=599447')
 (out/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
+
+fragment=(out/'sshs-ajax-get.html').read_text()
+matches=re.findall(r"fnView\\('([^']+)',\\s*'([0-9]+)'",fragment)
+if matches:
+ bbs,ntt=matches[0]
+ fetch('sshs-public-detail',urls['sshs-list']+'?nttId='+ntt)
+ fetch('sshs-ajax-detail','https://sshs.sen.hs.kr/dggb/module/board/selectBoardDetailAjax.do?'+urllib.parse.urlencode({'bbsId':bbs,'nttId':ntt}),referer=urls['sshs-list'])
+ fetch('sshs-sen-detail','https://sshs.sen.hs.kr/dggb/module/board/selectBoardSenDetailAjax.do?'+urllib.parse.urlencode({'bbsId':bbs,'nttId':ntt}),referer=urls['sshs-list'])
+(out/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
