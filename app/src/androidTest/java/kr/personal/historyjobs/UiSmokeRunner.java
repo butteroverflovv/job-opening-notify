@@ -27,16 +27,16 @@ public final class UiSmokeRunner extends Instrumentation {
         for(int i=0;i<3;i++){Notice n=new Notice();n.id="preview"+i;n.sourceId="sen";n.sourceName=src.name;n.school=i==0?"가람중학교":i==1?"나래고등학교":"다온중학교";n.region="서울";n.url="https://example.org/preview/"+i;n.title=titles[i];n.deadline=now+(i==2?-1L:i+1L)*86400000L;n.deadlineLabel=java.time.Instant.ofEpochMilli(n.deadline).atZone(Classifier.KST).format(java.time.format.DateTimeFormatter.ofPattern("MM.dd HH:mm"));n.firstSeen=now;n.status=Status.MATCH;n.complete=true;n.fingerprint=n.contentHash();notices.add(n);}
         store.merge(src,notices);
         activity=(MainActivity)startActivitySync(new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));idle();
-        visible("nav_notices");visible("nav_sources");visible("nav_settings");expect("notice_preview0",true);expect("notice_preview2",false);capture("01-notices");
+        oneLineHeading();visible("nav_notices");visible("nav_sources");visible("nav_settings");expect("notice_preview0",true);expect("notice_preview2",false);capture("01-notices");
         click("favorite_preview0");if(!store.notices().get("preview0").favorite)throw new AssertionError("Bookmark not saved");
         click("filter_favorite");expect("notice_preview0",true);expect("notice_preview1",false);capture("02-favorites");
         main(()->((EditText)find("search_field")).setText("없는학교"));idle();expect("notice_preview0",false);capture("03-search-empty");
         click("search_clear");expect("notice_preview0",true);click("filter_all");click("closed_toggle");expect("notice_preview2",true);
         click("notice_preview0");capture("04-detail");sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);idle();
-        click("nav_sources");visible("nav_sources");capture("05-sources");
+        click("nav_sources");oneLineHeading();visible("nav_sources");capture("05-sources");
         click("source_enabled_sen");if(store.source("sen").enabled)throw new AssertionError("Source switch failed");click("source_enabled_sen");
         click("add_source");capture("06-source-form");sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);idle();
-        click("nav_settings");visible("automatic_toggle");capture("07-settings");click("automatic_toggle");if(!c.getSharedPreferences("settings",0).getBoolean("automatic",false))throw new AssertionError("Schedule switch failed");click("automatic_toggle");
+        click("nav_settings");oneLineHeading();visible("automatic_toggle");capture("07-settings");click("automatic_toggle");if(!c.getSharedPreferences("settings",0).getBoolean("automatic",false))throw new AssertionError("Schedule switch failed");click("automatic_toggle");
         main(()->((ScrollView)find("page_scroll")).fullScroll(View.FOCUS_DOWN));idle();capture("08-settings-data");
         result.putString("stream","OK (1 test)\nUI interactions, filtering, bookmarks, source/schedule toggles and screenshots passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}}
@@ -46,5 +46,6 @@ public final class UiSmokeRunner extends Instrumentation {
     private void click(String tag){main(()->{View v=find(tag);if(v==null)throw new AssertionError("Missing "+tag);if(!v.isEnabled()||!v.isClickable())throw new AssertionError("Cannot click "+tag);v.performClick();});idle();}
     private void expect(String tag,boolean present){main(()->{if((find(tag)!=null)!=present)throw new AssertionError("Unexpected presence "+tag);});}
     private void visible(String tag){main(()->{View v=find(tag);android.graphics.Rect rect=new android.graphics.Rect();if(v==null||!v.getGlobalVisibleRect(rect)||rect.height()<v.getHeight())throw new AssertionError("Clipped control "+tag);});}
+    private void oneLineHeading(){main(()->{for(String tag:new String[]{"page_heading","page_intro"}){TextView t=(TextView)find(tag);if(t.getLineCount()!=1)throw new AssertionError("Heading wraps: "+t.getText());}});}
     private void capture(String name)throws Exception{idle();Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new IOException("Screenshot unavailable");try(OutputStream out=new FileOutputStream(new File(screenshots,name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}finally{image.recycle();}}
 }

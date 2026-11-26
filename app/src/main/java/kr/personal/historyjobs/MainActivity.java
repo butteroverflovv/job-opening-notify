@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
     }
     private Button button(String label,boolean primary,Runnable action){return Ui.button(this,label,primary,action);}
     private TextView badge(String label,boolean emphasis){TextView b=bold(label,11,emphasis?ACCENT:Ui.SECONDARY);b.setPadding(dp(8),dp(5),dp(8),dp(5));b.setBackground(Ui.shape(this,emphasis?Ui.TINT:Ui.FILL,0,6));return b;}
-    private void heading(String title,String subtitle){screen.addView(bold(title,24,INK));space(screen,8);screen.addView(text(subtitle,14,Ui.SECONDARY));space(screen,24);}
+    private void heading(String title,String subtitle){TextView heading=bold(title,24,INK);heading.setTag("page_heading");screen.addView(heading);space(screen,8);TextView intro=text(subtitle,14,Ui.SECONDARY);intro.setTag("page_intro");screen.addView(intro);space(screen,24);}
     private void sectionTitle(LinearLayout into,String title,String icon){LinearLayout r=row();r.addView(Ui.icon(this,icon,ACCENT),new LinearLayout.LayoutParams(dp(21),dp(21)));TextView t=bold(title,17,INK);t.setPadding(dp(9),0,0,0);r.addView(t,new LinearLayout.LayoutParams(0,-2,1));into.addView(r);space(into,16);}
     private void render(){
         progress=null;noticeList=null;root=col();root.setBackgroundColor(BG);
@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
         bottomNavigation.addView(nav);root.addView(bottomNavigation);if(Build.VERSION.SDK_INT>=30)root.requestApplyInsets();
     }
     private void noticesScreen(){
-        heading("나에게 맞는 역사 공고","제목에 ‘역사’가 포함된 공고를 모아봐요.");
+        heading("역사 채용공고","제목에 ‘역사’가 있는 공고");
         LinearLayout sync=row();sync.setPadding(dp(14),dp(14),dp(12),dp(14));sync.setBackground(shape(Ui.FILL,0));
         LinearLayout status=col();TextView statusTitle=bold(SyncEngine.busy()?"새 공고를 확인하고 있어요":"게시판의 새 소식",13,INK);status.addView(statusTitle);space(status,5);
         progress=text(running.trim().isEmpty()?lastRun():running,11,MUTED);progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);status.addView(progress);LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,-2,1);statusLp.rightMargin=dp(12);sync.addView(status,statusLp);
@@ -172,7 +172,7 @@ public class MainActivity extends Activity {
         if(!value.isEmpty()){TextView v=bold(value,15,ACCENT);v.setPadding(0,0,dp(8),0);line.addView(v);}line.addView(Ui.icon(this,"arrow",0xffb4b4bb),new LinearLayout.LayoutParams(dp(16),dp(16)));line.setOnClickListener(v->action.run());into.addView(line);
     }
     private void settingsScreen(){
-        heading("설정","공고를 확인하는 나만의 방식을 정해요.");
+        heading("설정","알림과 확인 시간을 관리해요.");
         LinearLayout c=card(screen);sectionTitle(c,"자동 확인","clock");Switch automatic=toggleRow(c,"하루 두 번 확인","한국 시간 기준",prefs.getBoolean("automatic",true));automatic.setTag("automatic_toggle");automatic.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("automatic",on).apply();CheckWorker.reschedule(this);});space(c,8);Ui.divider(this,c);
         for(int i=0;i<2;i++){final int slot=i;int minute=prefs.getInt("slot"+i,i==0?720:1080);actionRow(c,i==0?"첫 번째 확인":"두 번째 확인",String.format(Locale.KOREA,"%02d:%02d",minute/60,minute%60),"",()->new TimePickerDialog(this,(view,h,m)->{prefs.edit().putInt("slot"+slot,h*60+m).apply();CheckWorker.reschedule(this);render();},minute/60,minute%60,true).show());if(i==0)Ui.divider(this,c);}
         space(c,8);c.addView(text("절전이나 네트워크 상황에 따라 늦어질 수 있어요. 앱을 강제 종료했다면 다시 열어 주세요.",12,MUTED));
