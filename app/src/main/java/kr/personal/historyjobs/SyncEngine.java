@@ -57,6 +57,6 @@ public final class SyncEngine {
     public static void testNotification(Context c){
         NotificationManager nm=c.getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("jobs","역사 제목 공고",NotificationManager.IMPORTANCE_DEFAULT));
         if(Build.VERSION.SDK_INT>=33&&c.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
-        nm.notify(101,new Notification.Builder(c,"jobs").setSmallIcon(R.drawable.ic_book).setContentTitle("역사 채용노트 · 테스트 알림").setContentText("앱 알림이 켜져 있어요.").setAutoCancel(true).build());
+        nm.notify(101,new Notification.Builder(c,"jobs").setSmallIcon(R.drawable.ic_book).setContentTitle("교원 채용공고 알리미 · 테스트 알림").setContentText("앱 알림이 켜져 있어요.").setAutoCancel(true).build());
     }
 }

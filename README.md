@@ -1,6 +1,15 @@
-# 역사 채용노트 · Android 0.1.1
+# 교원 채용공고 알리미 · Android 0.1.2
 
 서울교육일자리포털·경기도교육청·동경한국학교와 추가한 게시판에서 **제목에 ‘역사’가 들어 있는 공고만** 모아보는 개인용 앱입니다.
+
+## 0.1.2 화면 변경
+
+- 앱스 화면 이름과 앱 상단 제목을 ‘교원 채용공고 알리미’로 통일했습니다.
+- 상단 지역 안내와 영문 소제목을 정리했습니다.
+- 흰색 배경, 연회색 경계와 가벼운 그림자, 갈색(#7B533E) 포인트를 적용했습니다.
+- 색상 선택 기능은 추가하지 않았습니다.
+- 새 갈색 말풍선·학교 아이콘은 검토 전이므로 앱에 적용하지 않았습니다. 기존 아이콘을 유지합니다.
+- 제목 필터, 예약, 알림, 백업 기능은 동일합니다.
 
 ## 0.1.1 변경 사항
 
@@ -41,7 +50,7 @@
 
 Android 8(API 26) 이상을 대상으로 작성했습니다. APK를 휴대폰에서 열고 필요하면 해당 브라우저/파일 앱의 설치를 허용합니다. 앱을 열고 알림 권한을 허용한 뒤 ‘지금 확인’을 누릅니다.
 
-GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.1-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
+GitHub **Actions → Build APK**의 성공한 실행에는 **history-jobs-0.1.2-unsigned** artifact가 있습니다. 이것은 서명 전 APK와 공식 Android apksigner 도구입니다. 이 대화에서 제공하는 설치용 APK는 해당 빌드에 개인 서명을 추가한 파일입니다. 서명 전 APK는 설치용이 아닙니다.
 
 Android Studio 또는 JDK 17 + Android SDK 35 환경:
 
@@ -56,7 +65,7 @@ Android Studio 또는 JDK 17 + Android SDK 35 환경:
 서명키와 비밀번호는 공개 저장소·Actions artifact에 올리지 않습니다. 향후 APK를 서명할 때는 별도로 보관한 개인 키 파일과 설정을 사용합니다.
 
 ```sh
-python3 tools/sign_apk.py --input history-jobs-0.1.1-unsigned.apk --output history-jobs-0.1.1.apk --signer apksigner.jar --credentials /개인경로/signing.json
+python3 tools/sign_apk.py --input history-jobs-0.1.2-unsigned.apk --output history-jobs-0.1.2.apk --signer apksigner.jar --credentials /개인경로/signing.json
 ```
 
 `signing.json`은 같은 폴더의 `history-jobs.p12` 경로, 키 별칭과 암호를 담는 개인 설정 파일입니다. 배포 전 인증서 지문이 이전 제공 APK와 같은지 확인합니다. 키 보관본은 공개 저장소에 포함하지 않습니다.
