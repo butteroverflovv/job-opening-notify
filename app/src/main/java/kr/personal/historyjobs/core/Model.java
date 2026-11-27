@@ -31,7 +31,7 @@ public final class Model {
         public List<Link> attachments=new ArrayList<>();
         public long deadline=0, firstSeen=0, lastSeen=0, bodyFetchedAt=0;
         public boolean favorite=false, read=false, complete=false;
-        public String contentHash() { return hash(title+"|"+url); }
+        public String contentHash() { return PostIdentity.content(this); }
 
     }
     public static String hash(String s) {

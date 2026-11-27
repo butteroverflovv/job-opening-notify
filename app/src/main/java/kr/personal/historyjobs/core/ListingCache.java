@@ -14,10 +14,10 @@ public final class ListingCache {
     }
     public static String config(Source source,long now){
         int year=Instant.ofEpochMilli(now).atZone(Classifier.KST).getYear();
-        return Model.hash("list-cache-v1|"+(BoardParser.kind(source).equals("SCHOOL_GNU")?"publication-v2|":"")+year+"|"+source.url+"|"+source.kind+"|"+source.region+"|"+source.schoolHint+"|"+String.join("\n",source.keywords));
+        return Model.hash("list-cache-identity-v2|"+(BoardParser.kind(source).equals("SCHOOL_GNU")?"publication-v2|":"")+year+"|"+source.url+"|"+source.kind+"|"+source.region+"|"+source.schoolHint+"|"+String.join("\n",source.keywords));
     }
     public static boolean usable(Source source,State state,long now){return state!=null&&!state.records().isEmpty()&&state.config().equals(config(source,now))&&state.lastFull()>0&&now>=state.lastFull()&&now-state.lastFull()<FULL_INTERVAL;}
-    public static String fingerprint(Link link){return Model.hash(link.url()+"\n"+link.title()+"\n"+link.published()+"\n"+link.duty());}
+    public static String fingerprint(Link link){return Model.hash(PostIdentity.key("",link.url())+"\n"+link.title()+"\n"+link.published()+"\n"+link.duty());}
     public static State updated(Source source,State previous,Collection<Link> seen,long now,boolean full){
         LinkedHashSet<String> records=new LinkedHashSet<>();
         for(Link link:seen)if(!link.pinned()){records.add(fingerprint(link));if(records.size()==MAX_RECORDS)break;}

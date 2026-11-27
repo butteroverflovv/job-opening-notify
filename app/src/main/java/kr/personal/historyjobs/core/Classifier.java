@@ -14,11 +14,12 @@ public final class Classifier {
             return host.equals("work.sen.go.kr")||((host.equals("goe.go.kr")||host.equals("www.goe.go.kr"))&&(path.equals("/recruit")||path.startsWith("/recruit/")));
         }catch(Exception ignored){return false;}
     }
-    public static boolean titleMatches(String title,String boardUrl){return Selection.titleMatches(title,Selection.defaults(boardUrl));}
-    public static boolean titleMatches(Source source,String title){return Selection.titleMatches(title,source.keywords);}
+    public static boolean excludedTitle(String boardUrl,String title){return PostIdentity.tokyo(boardUrl)&&Objects.toString(title,"").contains("초등");}
+    public static boolean titleMatches(String title,String boardUrl){return !excludedTitle(boardUrl,title)&&Selection.titleMatches(title,Selection.defaults(boardUrl));}
+    public static boolean titleMatches(Source source,String title){return !excludedTitle(source.url,title)&&Selection.titleMatches(title,source.keywords);}
     public static boolean dutyMatches(String boardUrl,String duty){return educationBoard(boardUrl)&&Selection.compact(duty).contains("역사");}
     public static boolean matches(Source source,String title,String duty){return titleMatches(source,title)||dutyMatches(source.url,duty);}
-    public static boolean matches(Notice n){String board=n.sourceUrl.isEmpty()?n.url:n.sourceUrl;return Selection.titleMatches(n.title,n.keywords==null?Selection.defaults(board):n.keywords)||dutyMatches(board,n.duty);}
+    public static boolean matches(Notice n){String board=n.sourceUrl.isEmpty()?n.url:n.sourceUrl;return !excludedTitle(board,n.title)&&(Selection.titleMatches(n.title,n.keywords==null?Selection.defaults(board):n.keywords)||dutyMatches(board,n.duty));}
     public record Verdict(Status status,String reason,String school) {}
     public static boolean titleMatches(String title){return title!=null&&title.contains("역사");}
     public static Verdict classify(String title,String body,String hint,boolean complete){
@@ -31,7 +32,7 @@ public final class Classifier {
     public static void reclassify(Notice n,LocalDate today){
         String name=school(n.title);if(!name.isEmpty())n.school=name;
         n.status=Selection.eligible(n,today)?Status.MATCH:Status.EXCLUDED;
-        n.reason=!Selection.inWindow(n.published,today)?(n.published.isEmpty()?"게시일을 확인하지 못해 제외":"작년·올해 게시물이 아니어서 제외"):!Selection.academicYearMatches(n,today)?"제목에 올해·다음해 학년도가 없어 제외":dutyMatches(n.sourceUrl.isEmpty()?n.url:n.sourceUrl,n.duty)?"직무분야·과목에 ‘역사’ 포함":matches(n)?"게시판의 수집 키워드와 일치":"게시판의 수집 키워드와 일치하지 않아 제외";
+        n.reason=excludedTitle(n.sourceUrl.isEmpty()?n.url:n.sourceUrl,n.title)?"동경한국학교 초등 공고여서 제외":!Selection.inWindow(n.published,today)?(n.published.isEmpty()?"게시일을 확인하지 못해 제외":"작년·올해 게시물이 아니어서 제외"):!Selection.academicYearMatches(n,today)?"제목에 올해·다음해 학년도가 없어 제외":dutyMatches(n.sourceUrl.isEmpty()?n.url:n.sourceUrl,n.duty)?"직무분야·과목에 ‘역사’ 포함":matches(n)?"게시판의 수집 키워드와 일치":"게시판의 수집 키워드와 일치하지 않아 제외";
         if(n.bodyFetchedAt<=0)n.body="";
         n.attachments.clear();n.complete=true;n.fingerprint=n.contentHash();
     }

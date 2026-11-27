@@ -33,10 +33,10 @@ public final class Collector {
                 pages++;
                 // Some boards ignore page parameters but change counters/tokens in
                 // their HTML. Detect a repeated logical list to prevent such loops.
-                if(!list.items().isEmpty()&&!lists.add(Model.hash(list.items().stream().map(l->l.url()+"\n"+l.title()+"\n"+l.published()+"\n"+l.duty()).collect(java.util.stream.Collectors.joining("\n\n")))))break;
-                for(Link l:list.items())cacheListings.putIfAbsent(l.url(),l);
+                if(!list.items().isEmpty()&&!lists.add(Model.hash(list.items().stream().map(l->PostIdentity.key(source.url,l.url())+"\n"+l.title()+"\n"+l.published()+"\n"+l.duty()).collect(java.util.stream.Collectors.joining("\n\n")))))break;
+                for(Link l:list.items())PostIdentity.add(source,cacheListings,l);
                 List<Link> dated=GnuDates.resolve(source,list.items(),net,dates,today);
-                for(Link l:dated)listings.putIfAbsent(l.url(),l);
+                for(Link l:dated)PostIdentity.add(source,listings,l);
                 if(Selection.oldPage(dated,today)){queue.clear();break;}
                 List<Link> regular=list.items().stream().filter(l->!l.pinned()).collect(java.util.stream.Collectors.toList());
                 unchanged=incremental&&!regular.isEmpty()&&regular.stream().allMatch(l->remembered.contains(ListingCache.fingerprint(l)))?unchanged+1:0;
@@ -65,6 +65,6 @@ public final class Collector {
         ListingCache.State cache=!partial&&pages>0?ListingCache.updated(source,incremental?previous:null,cacheListings.values(),now,!incremental):null;
         return new Result(out,listings.size(),matches,partial,errors.stream().distinct().limit(15).collect(java.util.stream.Collectors.toList()),cache,incremental,pages);
     }
-    public static String id(Source s,String url){return Model.hash(s.id+"|"+url);}
+    public static String id(Source s,String url){return PostIdentity.id(s.id,s.url,url);}
     public static String shortError(Exception e){String s=e.getMessage();return s==null?e.getClass().getSimpleName():s.substring(0,Math.min(s.length(),160));}
 }

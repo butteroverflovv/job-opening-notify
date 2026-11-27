@@ -33,6 +33,7 @@ public final class UiSmokeRunner extends Instrumentation {
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
         String cacheSummary=cacheStorageChecks(c,store,now);
         String keywordSummary=storedKeywordChecks(store);
+        String identitySummary=identityChecks(c,store,now);
         String timingSummary=timingChecks(c,store);c.getSharedPreferences("settings",0).edit().putLong("lastRun",now).putLong("lastRunDuration",65_000).apply();
         Source src=store.source("sen");List<Notice> notices=new ArrayList<>();
         String[] titles={"가람중학교 역사 기간제교원 채용 공고","나래고등학교 2027학년도 역사과 기간제교원 채용 재공고 (2차)","다온중학교 역사 기간제교원 채용"};
@@ -106,9 +107,28 @@ public final class UiSmokeRunner extends Instrumentation {
         Instrumentation.ActivityMonitor originalMonitor=addMonitor(InspectActivity.class.getName(),new Instrumentation.ActivityResult(Activity.RESULT_OK,null),true);
         main(()->{try{var open=MainActivity.class.getDeclaredMethod("open",String.class);open.setAccessible(true);open.invoke(activity,GoyangBoard.article("https://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","6807"));}catch(Exception e){throw new AssertionError(e);}});idle();
         if(originalMonitor.getHits()!=1)throw new AssertionError("Goyang original must open in POST-capable page viewer");removeMonitor(originalMonitor);
-        result.putString("stream","OK (1 test)\n"+cacheSummary+"\n"+timingSummary+"\n"+keywordSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
+        result.putString("stream","OK (1 test)\n"+cacheSummary+"\n"+timingSummary+"\n"+keywordSummary+"\n"+identitySummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}finally{if(server!=null)server.close();}}
     private static Notice recentNotice(){Notice n=new Notice();n.published=java.time.LocalDate.now(Classifier.KST).toString();return n;}
+    private String identityChecks(Context c,Store store,long now)throws Exception{
+        String original=store.exportData().toString();Source tokyo=store.source("tokyo");String a="http://www.tokos.ed.jp/front_notice.brd/_656.405.24baa395/?shell=/index.shell:225",b=a.replace("24baa395","24e4a395"),third=a.replace("24baa395","changed");
+        String title=(java.time.LocalDate.now(Classifier.KST).getYear()+1)+"학년도 교원 채용 공고",date=java.time.LocalDate.now(Classifier.KST).toString();String oldA=Model.hash(tokyo.id+"|"+a),oldB=Model.hash(tokyo.id+"|"+b),legacy=Model.hash(title+"|"+a);
+        org.json.JSONObject data=store.exportData();org.json.JSONArray items=data.getJSONArray("notices");
+        items.put(new org.json.JSONObject().put("id",oldA).put("sourceId",tokyo.id).put("sourceUrl",tokyo.url).put("url",a).put("title",title).put("published",date).put("read",true).put("firstSeen",now-10_000).put("lastSeen",now-4000).put("body","보관한 공고 본문").put("bodyFetchedAt",now-3000).put("fingerprint",legacy));
+        items.put(new org.json.JSONObject().put("id",oldB).put("sourceId",tokyo.id).put("sourceUrl",tokyo.url).put("url",b).put("title",title).put("published",date).put("read",false).put("favorite",true).put("firstSeen",now-1000).put("lastSeen",now-1000));
+        String elementary=a.replace("_656.","_658.");items.put(new org.json.JSONObject().put("id",Model.hash(tokyo.id+"|"+elementary)).put("sourceId",tokyo.id).put("sourceUrl",tokyo.url).put("url",elementary).put("title",(java.time.LocalDate.now(Classifier.KST).getYear()+1)+"학년도 초등 교원 채용").put("published",date).put("status","MATCH"));
+        c.getSharedPreferences("notified",0).edit().putString(oldA,legacy).commit();store.restore(data.toString());String canonical=Collector.id(tokyo,a);Notice merged=store.notices().get(canonical);
+        if(store.notices().size()!=2||merged==null||!merged.read||!merged.favorite||merged.firstSeen!=now-10_000||!merged.body.equals("보관한 공고 본문")||!merged.url.equals(b))throw new AssertionError("Stored token aliases lost read/bookmark/body/discovery state");
+        if(!c.getSharedPreferences("notified",0).getString(canonical,"").equals(merged.fingerprint)||c.getSharedPreferences("notified",0).contains(oldA)||c.getSharedPreferences("notified",0).contains(oldB))throw new AssertionError("Sent notification identity was not migrated");
+        if(store.notices().get(Collector.id(tokyo,elementary)).status!=Status.EXCLUDED)throw new AssertionError("Saved Tokyo elementary post still matches");
+        Notice again=recentNotice();again.id=Collector.id(tokyo,third);again.sourceId=tokyo.id;again.sourceUrl=tokyo.url;again.url=third;again.title=title;again.firstSeen=now;again.lastSeen=now;
+        if(!store.merge(tokyo,List.of(again)).isEmpty()||store.notices().size()!=2||!store.notices().get(canonical).read||!store.notices().get(canonical).favorite)throw new AssertionError("Repeat token created NEW or revised alert");
+        store.restore(store.exportData().toString());if(!store.notices().get(canonical).read||store.notices().size()!=2)throw new AssertionError("Consolidation did not survive backup roundtrip");
+        var constructor=Store.class.getDeclaredConstructor(Context.class);constructor.setAccessible(true);Store reloaded=constructor.newInstance(c);if(reloaded.notices().size()!=2||!reloaded.notices().get(canonical).read)throw new AssertionError("Consolidation did not survive fresh disk load");
+        Notice revised=recentNotice();revised.id=canonical;revised.sourceId=tokyo.id;revised.sourceUrl=tokyo.url;revised.url=third;revised.title=title+" (수정)";revised.firstSeen=now;revised.lastSeen=now+1;
+        if(store.merge(tokyo,List.of(revised)).size()!=1||store.notices().get(canonical).read)throw new AssertionError("Real title revision did not reset read state");
+        store.restore(original);c.getSharedPreferences("notified",0).edit().remove(canonical).commit();return "IDENTITY_STORAGE_OK: legacy aliases collapsed, read/bookmark/body/first discovery/sent state retained; no repeat NEW; real edits remain unread; elementary excluded.";
+    }
     private String storedKeywordChecks(Store store)throws Exception{
         String original=store.exportData().toString();Source anyang=store.source("anyang-fl");org.json.JSONObject data=store.exportData();
         data.getJSONArray("notices").put(new org.json.JSONObject().put("id","old-anyan-false").put("sourceId",anyang.id).put("sourceUrl",anyang.url).put("url",anyang.url+"&nttSn=9001").put("title","2026학년도 안양외국어고등학교 사무직원(시설관리 대체직) 공개경쟁채용(2차) 최종 합격자 공고").put("published","2026-11-27").put("status","MATCH").put("favorite",true));

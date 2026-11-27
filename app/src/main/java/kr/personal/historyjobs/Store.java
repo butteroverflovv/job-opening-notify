@@ -9,6 +9,8 @@ import java.util.*;
 import static kr.personal.historyjobs.core.Model.*;
 import kr.personal.historyjobs.core.Selection;
 import kr.personal.historyjobs.core.Classifier;
+import kr.personal.historyjobs.core.PostIdentity;
+import kr.personal.historyjobs.core.NoticeDeduplicator;
 
 public final class Store {
     private static Store instance;
@@ -37,7 +39,7 @@ public final class Store {
         Source current=sources.stream().filter(s->s.id.equals(attempted.id)).findFirst().orElse(null);
         if(current==null||!current.enabled||!current.url.equals(attempted.url)||!current.keywords.equals(attempted.keywords)||!current.region.equals(attempted.region))return List.of();
         List<Notice> notify=new ArrayList<>();
-        for(Notice n:updates){if(n.sourceUrl.isEmpty())n.sourceUrl=attempted.url;n.keywords=new ArrayList<>(current.keywords);n.region=current.region;Classifier.reclassify(n);Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;if(n.title.equals(old.title)){n.body=old.body;n.bodyFetchedAt=old.bodyFetchedAt;}}
+        for(Notice n:updates){if(n.sourceUrl.isEmpty())n.sourceUrl=attempted.url;if(n.id.matches("[0-9a-f]{64}"))n.id=PostIdentity.id(n.sourceId,n.sourceUrl,n.url);n.keywords=new ArrayList<>(current.keywords);n.region=current.region;Classifier.reclassify(n);Notice old=notices.get(n.id);if(old!=null){n.favorite=old.favorite;n.read=old.read;n.firstSeen=old.firstSeen;if(PostIdentity.title(n.sourceUrl,n.title).equals(PostIdentity.title(old.sourceUrl,old.title))){n.body=old.body;n.bodyFetchedAt=old.bodyFetchedAt;}}
             boolean changed=old==null||!n.fingerprint.equals(old.fingerprint);
             if(changed&&n.status==Status.MATCH){n.read=false;if(n.deadline==0||n.deadline>=System.currentTimeMillis())notify.add(n);}
             notices.put(n.id,n);
@@ -65,12 +67,15 @@ public final class Store {
         if(j.optInt("selectionVersion",0)<7)for(Source src:ss)src.message="새 학교 게시판·AND 키워드 기준을 적용했어요. ‘지금 확인’으로 갱신해 주세요.";
         android.content.SharedPreferences notified=context.getSharedPreferences("notified",0);
         android.content.SharedPreferences.Editor delivery=notified.edit();
+        Map<String,Set<String>> delivered=new HashMap<>();
+        for(Notice n:nn.values())if(!n.fingerprint.isEmpty()&&n.fingerprint.equals(notified.getString(n.id,"")))delivered.computeIfAbsent(PostIdentity.id(n.sourceId,n.sourceUrl,n.url),key->new HashSet<>()).add(n.contentHash());
+        NoticeDeduplicator.Result consolidated=NoticeDeduplicator.consolidate(nn.values());nn=consolidated.notices();
+        for(var alias:consolidated.aliases().entrySet())if(!alias.getKey().equals(alias.getValue()))delivery.remove(alias.getKey());
         for(Notice n:nn.values()){
-            String previous=n.fingerprint;boolean wasSent=!previous.isEmpty()&&previous.equals(notified.getString(n.id,""));
             kr.personal.historyjobs.core.Classifier.reclassify(n);
-            if(wasSent)delivery.putString(n.id,n.fingerprint);
+            if(delivered.getOrDefault(PostIdentity.id(n.sourceId,n.sourceUrl,n.url),Set.of()).contains(n.contentHash()))delivery.putString(n.id,n.fingerprint);
         }
-        delivery.apply();
+        delivery.commit();
         sources.clear();sources.addAll(ss);notices.clear();notices.putAll(nn);
     }
     private static List<String> words(JSONArray values){List<String> out=new ArrayList<>();if(values!=null)for(int i=0;i<values.length();i++)out.add(values.optString(i));return Selection.keywords(String.join("\n",out));}

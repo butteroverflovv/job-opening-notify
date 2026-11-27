@@ -103,6 +103,7 @@ public class CoreTests {
         ListingCacheTests.run();
         NoticeAndDateTests.run();
         AllSchoolKeywordTests.run();
+        IdentityTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{

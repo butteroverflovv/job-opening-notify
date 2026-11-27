@@ -57,7 +57,7 @@ public final class BoardParser {
         String body=root.text();boolean empty=body.matches("(?s).*(?:등록된\\s*(?:게시물|공고|글|자료)(?:이|가)?\\s*없|검색(?:된|결과| 결과).*없|조회된.*없|검색건수\\s*0\\s*건).*" );
         if(body.contains("사용제약에 따른 안내"))return new Listing(List.of(),List.of(),false,"사이트에서 사용제약 안내를 반환했어요. 원문 주소·접근 상태를 확인해 주세요.");
         String warn=links.isEmpty()&&!empty?"공고 링크를 해석하지 못했어요. 게시판 구조 또는 접근 제한을 확인해 주세요.":"";
-        return new Listing(new ArrayList<>(links.values()),new ArrayList<>(pages),empty,warn);
+        return new Listing(PostIdentity.unique(source,new ArrayList<>(links.values())),new ArrayList<>(pages),empty,warn);
     }
     public static String kind(Source s){
         if((s.kind.equals("AUTO")||s.kind.equals("GENERIC"))&&InternationalBoards.goyang(s.url))return "SCHOOL_INTL_GGG";
