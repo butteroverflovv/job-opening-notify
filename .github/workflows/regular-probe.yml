@@ -1,0 +1,17 @@
+name: Diagnose regular boards
+on:
+  push:
+    branches: [diagnose/regular-teacher-boards]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/regular_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regular-diagnostics
+          path: regular-diagnostics/
