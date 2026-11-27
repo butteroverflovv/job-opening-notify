@@ -8,16 +8,22 @@ import kr.personal.historyjobs.core.Classifier;
 
 public class CheckWorker extends Worker {
     private static final String TAG="history-check";
+    private volatile Thread checkingThread;
     public CheckWorker(Context c,WorkerParameters p){super(c,p);}
     @Override public Result doWork(){
         Context c=getApplicationContext();
         if(!c.getSharedPreferences("settings",0).getBoolean("automatic",true))return Result.success();
-        // Reserve the next day before networking so errors cannot break future checks.
-        schedule(c);
-        boolean ok=SyncEngine.run(c,message->{});
-        if(!ok&&getRunAttemptCount()<2&&!isStopped())return Result.retry();
-        return Result.success();
+        checkingThread=Thread.currentThread();
+        try{
+            if(isStopped())return Result.success();
+            // Reserve the next day before networking so errors cannot break future checks.
+            schedule(c);
+            boolean ok=SyncEngine.run(c,message->{});
+            if(!ok&&getRunAttemptCount()<2&&!isStopped())return Result.retry();
+            return Result.success();
+        }finally{checkingThread=null;}
     }
+    @Override public void onStopped(){super.onStopped();Thread running=checkingThread;if(running!=null)running.interrupt();}
     public static void schedule(Context c){
         WorkManager wm=WorkManager.getInstance(c);
         android.content.SharedPreferences prefs=c.getSharedPreferences("settings",0);

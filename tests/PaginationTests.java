@@ -30,5 +30,37 @@ public final class PaginationTests {
         }
         calls.clear();Collector firstOld=new Collector((url,max,ref)->{calls.add(url);return CoreTests.response(url,page(row(1,"2024-12-31",false)));});
         ok(!firstOld.collect(source,Map.of(),now).partial()&&calls.size()==1,"old first page ends normally without extra archive requests");
+        calls.clear();Collector deep=new Collector((url,max,ref)->{
+            calls.add(url);int p=Selection.pageNumber(source,url);
+            if(p>85)throw new AssertionError("requested page beyond old date frontier");
+            String title=p==83?"2027학년도 역사 채용":"학교 행사 안내";
+            String rows=row(999,"2026-11-27",true)+row(p,p==85?"2024-12-31":"2025-12-20",false).replace("2026학년도 역사 채용",title);
+            return CoreTests.response(url,"<table><tr><th>번호</th><th>제목</th><th>작성일</th></tr>"+rows+"</table><a href='?page="+(p+1)+"'>다음</a>");
+        });
+        result=deep.collect(source,Map.of(),now);
+        ok(calls.size()==85&&!result.partial()&&result.errors().isEmpty(),"new generic schools scan beyond former quotas to the old date frontier normally");
+        ok(result.notices().stream().anyMatch(n->n.title.equals("2027학년도 역사 채용")),"matching post beyond eighty pages is collected after unrelated pages");
+        Source act=InternationalCatalog.defaults().stream().filter(s->s.id.equals("daewon-international")).findFirst().orElseThrow();calls.clear();
+        Collector legacy=new Collector((url,max,ref)->{
+            calls.add(url);int p=Selection.pageNumber(act,url);if(p>24)throw new AssertionError("past legacy frontier");
+            String rows=row(p,p==24?"2024-12-31":"2026-11-01",false).replace("/view.do?nttSn="+p,"/?act=board.read&code=1310&id="+p).replace("역사 채용","교사 공고");
+            return CoreTests.response(url,"<table><tr><th>번호</th><th>제목</th><th>작성일</th></tr>"+rows+"</table><a href='?act=board.list&code=1310&page="+(p+1)+"'>다음</a>");
+        });
+        result=legacy.collect(act,Map.of(),now);
+        ok(calls.size()==24&&result.checked()==23&&!result.partial(),"Daewon-style boards pass twenty pages and stop at old dates without range warning");
+        calls.clear();Collector repeats=new Collector((url,max,ref)->{
+            calls.add(url);if(calls.size()>2)throw new AssertionError("repeated logical list was not stopped");
+            int p=Selection.pageNumber(source,url);
+            return CoreTests.response(url,page(row(1,"2026-11-27",false))+"<span>조회수 "+p+"</span><a href='?page="+(p+1)+"'>다음</a>");
+        });
+        result=repeats.collect(source,Map.of(),now);
+        ok(calls.size()==2&&!result.partial()&&result.notices().size()==1,"repeated lists with changing HTML counters terminate without endless paging");
+        Collector failedLater=new Collector((url,max,ref)->{if(Selection.pageNumber(source,url)>1)throw new java.io.IOException("연결 실패");return CoreTests.response(url,page(row(1,"2026-11-27",false)));});
+        result=failedLater.collect(source,Map.of(),now);
+        ok(result.partial()&&result.errors().stream().anyMatch(e->e.contains("연결 실패")),"real later-page network failure remains visible");
+        try{
+            Thread.currentThread().interrupt();result=new Collector((url,max,ref)->{throw new AssertionError("cancelled collector requested network");}).collect(source,Map.of(),now);
+            ok(result.partial()&&result.errors().stream().anyMatch(e->e.contains("중단")),"cancellation is not reported as a completed archive scan");
+        }finally{Thread.interrupted();}
     }
 }

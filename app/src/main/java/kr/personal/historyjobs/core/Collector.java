@@ -13,10 +13,12 @@ public final class Collector {
     public Result collect(Source source,Map<String,Notice> known,long now)throws Exception{
         LocalDate today=java.time.Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate();
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
-        Set<String> visited=new HashSet<>(),bodies=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
-        List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;long budget=BoardParser.kind(source).equals("SCHOOL_SEN")?90_000_000_000L:35_000_000_000L;long stopAt=System.nanoTime()+budget;
-        int pageLimit=BoardParser.kind(source).equals("SCHOOL_ASP")?80:20;
-        while(!queue.isEmpty()&&pages<pageLimit&&System.nanoTime()<stopAt&&!Thread.currentThread().isInterrupted()){
+        Set<String> visited=new HashSet<>(),bodies=new HashSet<>(),lists=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
+        List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;
+        // Follow consecutive pages to the date frontier or the board's end. A fixed
+        // page/time quota can hide valid posts before reaching the old section.
+        // Each network request still has connect/read timeouts and cancellation.
+        while(!queue.isEmpty()&&!Thread.currentThread().isInterrupted()){
             String page=queue.remove();if(!visited.add(page))continue;
             try{
                 Net.Response response=net.get(page,4_000_000,source.url);String html=response.text();
@@ -24,6 +26,9 @@ public final class Collector {
                 BoardParser.Listing list=BoardParser.listing(source,response.url(),html);
                 if(!list.warning().trim().isEmpty())throw new IllegalStateException(list.warning());
                 pages++;
+                // Some boards ignore page parameters but change counters/tokens in
+                // their HTML. Detect a repeated logical list to prevent such loops.
+                if(!list.items().isEmpty()&&!lists.add(Model.hash(list.items().stream().map(l->l.url()+"\n"+l.title()+"\n"+l.published()+"\n"+l.duty()).collect(java.util.stream.Collectors.joining("\n\n")))))break;
                 for(Link l:list.items())listings.putIfAbsent(l.url(),l);
                 if(Selection.oldPage(list.items(),today)){queue.clear();break;}
                 List<String> next=Selection.nextPages(source,response.url(),list.pages());
@@ -31,7 +36,7 @@ public final class Collector {
                 for(String p:next)if(!visited.contains(p))queue.add(p);
             }catch(Exception e){if(pages==0)throw e;errors.add("목록 일부: "+shortError(e));partial=true;}
         }
-        if(!queue.isEmpty()){partial=true;errors.add("목록 확인 범위 제한으로 일부 페이지를 확인하지 못했어요. 게시판 원문도 확인해 주세요.");}
+        if(Thread.currentThread().isInterrupted()){partial=true;errors.add("확인이 중단됐어요. 다음 확인 때 다시 시도해 주세요.");}
         List<Notice> out=new ArrayList<>();int matches=0,undated=0;
         for(Link link:listings.values()){
             String key=id(source,link.url());Notice old=known.get(key);
