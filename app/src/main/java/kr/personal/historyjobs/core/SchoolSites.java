@@ -28,6 +28,15 @@ public final class SchoolSites {
             default -> false;
         };
     }
+    public static String recordUrl(Source source,String page,Html.Node node){
+        String url=Html.resolve(page,node.attr("href"));if(!detail(source,url))return "";var q=SchoolBoards.query(url);var fields=SchoolBoards.query(source.url);String base=source.url;
+        if(kind(source.url).equals("SCHOOL_ASP")){base=Html.resolve(source.url,"notice_read.asp");for(String key:List.of("idx","lv1","lv3","page"))base=BoardParser.query(base,key,key.equals("lv3")?"0":key.equals("page")?"1":q.get("idx"));return base;}
+        if(kind(source.url).equals("SCHOOL_ACT")){
+            if(fields.getOrDefault("act","").equals("news.main"))return BoardParser.query(base,"sid",q.get("sid"));
+            base=BoardParser.query(base,"act","board.read");for(String key:List.of("num","id"))if(q.containsKey(key))base=BoardParser.query(base,key,q.get(key));return base;
+        }
+        return url;
+    }
     public static String title(Html.Node link){
         String title=link.attr("title").trim();if(!title.isEmpty()&&!title.matches("(?:새창.*|.*새 창.*|상세보기|글보기)"))return title;
         for(Html.Node n:link.all())if(Arrays.asList(n.attr("class").split("\\s+")).contains("title"))return n.text().trim();

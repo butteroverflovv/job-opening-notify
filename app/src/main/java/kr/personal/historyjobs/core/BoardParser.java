@@ -21,12 +21,12 @@ public final class BoardParser {
             String raw=n.attr("href");if(raw.trim().isEmpty())raw=n.attr("data-url");if(raw.trim().isEmpty())raw=n.attr("data-href");
             String action=n.attr("onclick");String text=n.text().replaceAll("\\s+"," ").trim();
             if(text.length()>2000)continue;
-            String schoolUrl=SchoolBoards.recordUrl(source,page,n);String url=schoolUrl.isEmpty()?Html.resolve(page,raw):schoolUrl;
+            String schoolUrl=SchoolBoards.recordUrl(source,page,n);if(schoolUrl.isEmpty())schoolUrl=SchoolSites.recordUrl(source,page,n);String url=schoolUrl.isEmpty()?Html.resolve(page,raw):schoolUrl;
             String handler=(raw+" "+action).replace("&amp;","&");
             if(schoolUrl.isEmpty()&&(url.trim().isEmpty()||raw.startsWith("javascript:")))url=fromAction(source,page,handler);
             if(!url.trim().isEmpty()&&(Html.sameHost(source.url,url)||Html.sameHost(page,url))&&isDetail(source,url)&&!text.trim().isEmpty()){
                 Link old=links.get(url);
-                if(old==null||old.title().equals("상세보기")||old.title().equals("보기")||(old.pinned()&&!Selection.pinned(n))){
+                if(old==null||old.title().equals("상세보기")||old.title().equals("보기")||(old.pinned()&&!Selection.pinned(n))||(old.published().isEmpty()&&!SchoolSites.published(source,n).isEmpty())){
                     String title=SchoolSites.kind(source.url).isEmpty()?text:SchoolSites.title(n);
                     for(Html.Node child:n.all()){
                         if(child.attr("class").matches(".*(?:list_title|cont_tit|board_title|subject).*" )&&!child.text().trim().isEmpty()){
