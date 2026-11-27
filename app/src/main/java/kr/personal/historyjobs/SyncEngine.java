@@ -25,10 +25,10 @@ public final class SyncEngine {
                 if(!source.enabled)continue;
                 progress.update(source.name+" 확인 중…");long now=System.currentTimeMillis();
                 try{
-                    Collector.Result result=collector.collect(source,store.notices(),now,cache.state(source.id));
+                    Collector.Result result=collector.collect(source,store.notices(),now,store.canCheckpoint()?cache.state(source.id):null);
                     store.merge(source,result.notices());
                     Source current=store.source(source.id);
-                    if(current!=null&&current.enabled&&result.cache()!=null&&ListingCache.config(current,now).equals(result.cache().config()))cache.put(store.sources(),source.id,result.cache());
+                    if(store.canCheckpoint()&&current!=null&&current.enabled&&result.cache()!=null&&ListingCache.config(current,now).equals(result.cache().config()))cache.put(store.sources(),source.id,result.cache());
                     String summary=(result.partial()?"일부 확인":"확인 완료")+" · 목록 "+result.listed()+"건 / 조건 일치 "+result.checked()+"건";
                     summary+=" · "+(result.incremental()?"빠른 확인":"전체 확인");
                     if(!result.errors().isEmpty())summary+="\n"+String.join("\n",result.errors());

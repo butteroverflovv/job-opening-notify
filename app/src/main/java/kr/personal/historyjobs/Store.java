@@ -17,7 +17,7 @@ public final class Store {
     private final List<Source> sources=new ArrayList<>();
     private final LinkedHashMap<String,Notice> notices=new LinkedHashMap<>();
     private final Context context;
-    private String loadWarning="";
+    private String loadWarning="";private boolean storageHealthy=true;
     private Store(Context c){context=c;file=new AtomicFile(new File(c.getFilesDir(),"history-jobs.json"));
         if(file.getBaseFile().exists())try{load(new JSONObject(new String(file.readFully(),StandardCharsets.UTF_8)));save();}
         catch(Exception e){loadWarning="저장 데이터를 읽지 못했어요. 기존 파일은 유지했어요. 설정에서 진단 내보내기를 이용해 주세요.";}
@@ -26,6 +26,7 @@ public final class Store {
     public synchronized List<Source> sources(){List<Source> out=new ArrayList<>();sources.forEach(s->out.add(s.copy()));return out;}
     public synchronized Map<String,Notice> notices(){return new LinkedHashMap<>(notices);}
     public synchronized String warning(){return loadWarning;}
+    public synchronized boolean canCheckpoint(){return loadWarning.trim().isEmpty()&&storageHealthy;}
     public synchronized Source source(String id){return sources.stream().filter(s->s.id.equals(id)).map(Source::copy).findFirst().orElse(null);}
     public synchronized void putSource(Source s){if(!loadWarning.trim().isEmpty())return;sources.removeIf(x->x.id.equals(s.id));sources.add(s);for(Notice n:notices.values())if(n.sourceId.equals(s.id)){n.keywords=new ArrayList<>(s.keywords);n.region=s.region;Classifier.reclassify(n);}save();}
     public synchronized void removeSource(String id){sources.removeIf(s->s.id.equals(id));save();ListingCacheStore.get(context).remove(id);}
@@ -80,5 +81,5 @@ public final class Store {
             j.put("sources",ss).put("notices",ns);
         }catch(JSONException e){throw new IllegalStateException(e);}return j;
     }
-    private void save(){if(!loadWarning.trim().isEmpty())return;FileOutputStream out=null;try{out=file.startWrite();out.write(toJson().toString().getBytes(StandardCharsets.UTF_8));file.finishWrite(out);}catch(Exception e){if(out!=null)file.failWrite(out);context.getSharedPreferences("settings",0).edit().putString("storageError","저장 실패: "+e.getClass().getSimpleName()).apply();}}
+    private void save(){if(!loadWarning.trim().isEmpty())return;FileOutputStream out=null;try{out=file.startWrite();out.write(toJson().toString().getBytes(StandardCharsets.UTF_8));file.finishWrite(out);storageHealthy=true;}catch(Exception e){storageHealthy=false;if(out!=null)file.failWrite(out);context.getSharedPreferences("settings",0).edit().putString("storageError","저장 실패: "+e.getClass().getSimpleName()).apply();}}
 }
