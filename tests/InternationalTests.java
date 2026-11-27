@@ -30,6 +30,13 @@ public final class InternationalTests {
         ok(SourceList.select(sources,"기간제",Set.of("서울")).isEmpty()&&SourceList.select(sources,"기간제",all).equals(List.of(c)),"source search and region selection combine");
         ok(sources.equals(List.of(a,c,b))&&!a.enabled&&SourceList.select(sources,"",all).contains(a),"display sorting preserves storage order and keeps disabled boards manageable");
         ok(Model.defaults().size()==25,"new installation has previous nineteen and six new boards");
+        ok(SourceList.select(sources,"",all,true).stream().map(s->s.name).toList().equals(List.of("다온중학교","나래고등학교","가람고등학교")),"descending source mode reverses Korean name order");
+        ok(SourceList.select(sources,"교사",Set.of("서울"),true).equals(List.of(a))&&sources.equals(List.of(a,c,b)),"descending mode combines search and region without changing collection order");
+        a.message="확인 완료 · 목록 100건 / 조건 일치 0건";ok(SourceList.status(a).equals("확인 완료"),"zero matching posts still count as a successful check");
+        a.lastSuccess=100;a.message="확인 실패 · 연결 시간 초과";ok(SourceList.status(a).equals("확인 실패"),"latest failure stays visible despite earlier success");
+        a.message="일부 확인 · 게시일 누락";ok(SourceList.status(a).equals("일부 확인"),"partial check is not mislabeled complete");
+        a.message="설정 변경 · 다시 확인해 주세요";ok(SourceList.status(a).equals("확인 필요"),"changed settings require another check");
+        a.lastSuccess=0;a.lastAttempt=0;a.message="아직 확인하지 않았어요";ok(SourceList.status(a).equals("미확인"),"new source status is unchecked rather than failed");
     }
     public static void main(String[] args)throws Exception{
         Source source=InternationalCatalog.defaults().stream().filter(s->s.id.equals("goyang-international")).findFirst().orElseThrow();
