@@ -7,10 +7,14 @@ import static kr.personal.historyjobs.core.Model.*;
 /** Title-only collection: no detail requests and no attachment downloads. */
 public final class Collector {
     public interface Transport { Net.Response get(String url,int limit,String referer)throws Exception; }
-    public record Result(List<Notice> notices,int listed,int checked,boolean partial,List<String> errors) {}
+    public record Result(List<Notice> notices,int listed,int checked,boolean partial,List<String> errors,ListingCache.State cache,boolean incremental,int pages) {}
     private final Transport net;
     public Collector(Transport net){this.net=net;}
     public Result collect(Source source,Map<String,Notice> known,long now)throws Exception{
+        return collect(source,known,now,null);
+    }
+    public Result collect(Source source,Map<String,Notice> known,long now,ListingCache.State previous)throws Exception{
+        boolean incremental=ListingCache.usable(source,previous,now);Set<String> remembered=incremental?new HashSet<>(previous.records()):Set.of();int unchanged=0;
         LocalDate today=java.time.Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate();
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
         Set<String> visited=new HashSet<>(),bodies=new HashSet<>(),lists=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
@@ -31,6 +35,9 @@ public final class Collector {
                 if(!list.items().isEmpty()&&!lists.add(Model.hash(list.items().stream().map(l->l.url()+"\n"+l.title()+"\n"+l.published()+"\n"+l.duty()).collect(java.util.stream.Collectors.joining("\n\n")))))break;
                 for(Link l:list.items())listings.putIfAbsent(l.url(),l);
                 if(Selection.oldPage(list.items(),today)){queue.clear();break;}
+                List<Link> regular=list.items().stream().filter(l->!l.pinned()).collect(java.util.stream.Collectors.toList());
+                unchanged=incremental&&!regular.isEmpty()&&regular.stream().allMatch(l->remembered.contains(ListingCache.fingerprint(l)))?unchanged+1:0;
+                if(unchanged>=ListingCache.UNCHANGED_PAGES){queue.clear();break;}
                 List<String> next=Selection.nextPages(source,response.url(),list.pages());
                 if(next.isEmpty()&&list.pages().stream().anyMatch(p->Selection.pageNumber(source,p)>Selection.pageNumber(source,response.url())+1)){partial=true;errors.add("다음 페이지 주소를 확인하지 못해 일부 목록만 확인했어요.");}
                 for(String p:next)if(!visited.contains(p))queue.add(p);
@@ -52,7 +59,8 @@ public final class Collector {
             if(n.status==Status.MATCH||old!=null)out.add(n);
         }
         if(undated>0){partial=true;errors.add("게시일을 확인하지 못한 "+undated+"건은 기간을 판단할 수 없어 제외했어요.");}
-        return new Result(out,listings.size(),matches,partial,errors.stream().distinct().limit(15).collect(java.util.stream.Collectors.toList()));
+        ListingCache.State cache=!partial&&pages>0?ListingCache.updated(source,incremental?previous:null,listings.values(),now,!incremental):null;
+        return new Result(out,listings.size(),matches,partial,errors.stream().distinct().limit(15).collect(java.util.stream.Collectors.toList()),cache,incremental,pages);
     }
     public static String id(Source s,String url){return Model.hash(s.id+"|"+url);}
     public static String shortError(Exception e){String s=e.getMessage();return s==null?e.getClass().getSimpleName():s.substring(0,Math.min(s.length(),160));}

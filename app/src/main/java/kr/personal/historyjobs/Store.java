@@ -28,7 +28,7 @@ public final class Store {
     public synchronized String warning(){return loadWarning;}
     public synchronized Source source(String id){return sources.stream().filter(s->s.id.equals(id)).map(Source::copy).findFirst().orElse(null);}
     public synchronized void putSource(Source s){if(!loadWarning.trim().isEmpty())return;sources.removeIf(x->x.id.equals(s.id));sources.add(s);for(Notice n:notices.values())if(n.sourceId.equals(s.id)){n.keywords=new ArrayList<>(s.keywords);n.region=s.region;Classifier.reclassify(n);}save();}
-    public synchronized void removeSource(String id){sources.removeIf(s->s.id.equals(id));save();}
+    public synchronized void removeSource(String id){sources.removeIf(s->s.id.equals(id));save();ListingCacheStore.get(context).remove(id);}
     public synchronized void sourceResult(Source attempted,String message,boolean success,long now){
         for(Source s:sources)if(s.id.equals(attempted.id)&&s.url.equals(attempted.url)&&s.keywords.equals(attempted.keywords)&&s.region.equals(attempted.region)){s.lastAttempt=now;if(success)s.lastSuccess=now;s.message=message;save();break;}
     }
@@ -52,7 +52,7 @@ public final class Store {
         JSONArray src=j.optJSONArray("sources"),items=j.optJSONArray("notices");
         if(src==null||src.length()>50||items==null||items.length()>10000)throw new IOException("백업 크기 또는 형식 오류");
         for(int i=0;i<src.length();i++){JSONObject s=src.getJSONObject(i);String url=s.optString("url");if(kr.personal.historyjobs.core.Html.resolve(url,url).trim().isEmpty())throw new IOException("게시판 주소 형식 오류");if(s.has("keywords")&&!Selection.validKeywords(words(s.optJSONArray("keywords"))))throw new IOException("게시판 키워드 형식 오류");}
-        load(j);loadWarning="";save();
+        load(j);loadWarning="";save();ListingCacheStore.get(context).clear();
     }
     private void load(JSONObject j)throws JSONException{
         List<Source> ss=new ArrayList<>();LinkedHashMap<String,Notice> nn=new LinkedHashMap<>();

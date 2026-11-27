@@ -19,14 +19,18 @@ public final class SyncEngine {
         Context app=c.getApplicationContext();Store store=Store.get(app);boolean ok=true;
         try{
             Collector collector=new Collector(Net::get);
+            ListingCacheStore cache=ListingCacheStore.get(app);
             for(Source source:store.sources()){
                 if(Thread.currentThread().isInterrupted())return false;
                 if(!source.enabled)continue;
                 progress.update(source.name+" 확인 중…");long now=System.currentTimeMillis();
                 try{
-                    Collector.Result result=collector.collect(source,store.notices(),now);
+                    Collector.Result result=collector.collect(source,store.notices(),now,cache.state(source.id));
                     store.merge(source,result.notices());
+                    Source current=store.source(source.id);
+                    if(current!=null&&current.enabled&&result.cache()!=null&&ListingCache.config(current,now).equals(result.cache().config()))cache.put(store.sources(),source.id,result.cache());
                     String summary=(result.partial()?"일부 확인":"확인 완료")+" · 목록 "+result.listed()+"건 / 조건 일치 "+result.checked()+"건";
+                    summary+=" · "+(result.incremental()?"빠른 확인":"전체 확인");
                     if(!result.errors().isEmpty())summary+="\n"+String.join("\n",result.errors());
                     store.sourceResult(source,summary,true,now);
                 }catch(Exception e){ok=false;store.sourceResult(source,"확인 실패 · "+Collector.shortError(e),false,now);}

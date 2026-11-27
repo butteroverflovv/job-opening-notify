@@ -31,6 +31,7 @@ public final class UiSmokeRunner extends Instrumentation {
         store.removeSource("goe-regular");store.restore(store.exportData().toString());if(store.source("goe-regular")!=null)throw new AssertionError("Deleted regular board returned after backup restore");
         for(Source s:store.sources())store.removeSource(s.id);
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
+        String cacheSummary=cacheStorageChecks(c,store,now);
         Source src=store.source("sen");List<Notice> notices=new ArrayList<>();
         String[] titles={"가람중학교 역사 기간제교원 채용 공고","나래고등학교 2027학년도 역사과 기간제교원 채용 재공고 (2차)","다온중학교 역사 기간제교원 채용"};
         for(int i=0;i<3;i++){Notice n=recentNotice();n.id="preview"+i;n.sourceId="sen";n.sourceName=src.name;n.school=i==0?"가람중학교":i==1?"나래고등학교":"다온중학교";n.region="서울";n.url=server.base()+"/post"+i;n.title=titles[i];n.deadline=now+(i==2?-1L:i+1L)*86400000L;n.deadlineLabel=java.time.Instant.ofEpochMilli(n.deadline).atZone(Classifier.KST).format(java.time.format.DateTimeFormatter.ofPattern("MM.dd HH:mm"));n.firstSeen=now;n.status=Status.MATCH;n.complete=true;n.fingerprint=n.contentHash();notices.add(n);}
@@ -97,9 +98,25 @@ public final class UiSmokeRunner extends Instrumentation {
         Instrumentation.ActivityMonitor originalMonitor=addMonitor(InspectActivity.class.getName(),new Instrumentation.ActivityResult(Activity.RESULT_OK,null),true);
         main(()->{try{var open=MainActivity.class.getDeclaredMethod("open",String.class);open.setAccessible(true);open.invoke(activity,GoyangBoard.article("https://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","6807"));}catch(Exception e){throw new AssertionError(e);}});idle();
         if(originalMonitor.getHits()!=1)throw new AssertionError("Goyang original must open in POST-capable page viewer");removeMonitor(originalMonitor);
-        result.putString("stream","OK (1 test)\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
+        result.putString("stream","OK (1 test)\n"+cacheSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}finally{if(server!=null)server.close();}}
     private static Notice recentNotice(){Notice n=new Notice();n.published=java.time.LocalDate.now(Classifier.KST).toString();return n;}
+    private String cacheStorageChecks(Context c,Store store,long now)throws Exception{
+        ListingCacheStore cache=ListingCacheStore.get(c);Source source=store.source("sen");List<String> records=new ArrayList<>();for(int i=0;i<150;i++)records.add(Model.hash("cache fixture "+i));
+        ListingCache.State state=new ListingCache.State(ListingCache.config(source,now),now,records);cache.put(store.sources(),source.id,state);
+        var constructor=ListingCacheStore.class.getDeclaredConstructor(Context.class);constructor.setAccessible(true);ListingCacheStore restored=constructor.newInstance(c);
+        if(restored.state(source.id)==null||restored.state(source.id).records().size()!=100||!ListingCache.usable(source,restored.state(source.id),now+1000))throw new AssertionError("Cache did not persist/reload with its record limit");
+        org.json.JSONObject backup=store.exportData();if(backup.toString().contains("lastFull")||backup.toString().contains("cache fixture"))throw new AssertionError("Disposable cache leaked into user backup");store.restore(backup.toString());
+        if(cache.state(source.id)!=null||store.source(source.id)==null)throw new AssertionError("Backup restore did not reset cache independently of saved sources");
+        Source temporary=Model.source("cache-temporary","임시 테스트","https://cache.test/list","GENERIC","서울","");store.putSource(temporary);cache.put(store.sources(),temporary.id,state);store.removeSource(temporary.id);if(cache.state(temporary.id)!=null)throw new AssertionError("Deleted source retained cache");
+        List<Source> fifty=new ArrayList<>();for(int i=0;i<50;i++)fifty.add(Model.source("cache-"+i,"테스트 "+i,"https://cache.test/"+i,"GENERIC","서울",""));
+        for(Source s:fifty)cache.put(fifty,s.id,new ListingCache.State(ListingCache.config(s,now),now,records));
+        File cacheFile=new File(c.getFilesDir(),"listing-cache.json");byte[] bytes=java.nio.file.Files.readAllBytes(cacheFile.toPath());org.json.JSONArray rows=new org.json.JSONObject(new String(bytes,StandardCharsets.UTF_8)).getJSONArray("sources");
+        if(rows.length()!=50||bytes.length>512_000)throw new AssertionError("Cache source/byte bound failed");for(int i=0;i<rows.length();i++)if(rows.getJSONObject(i).getJSONArray("records").length()!=100)throw new AssertionError("Per-source cache exceeded limit");
+        cache.put(List.of(source),source.id,state);if(new org.json.JSONObject(new String(java.nio.file.Files.readAllBytes(cacheFile.toPath()),StandardCharsets.UTF_8)).getJSONArray("sources").length()!=1)throw new AssertionError("Inactive cache entries were not pruned");
+        java.nio.file.Files.write(cacheFile.toPath(),"invalid cache".getBytes(StandardCharsets.UTF_8));if(constructor.newInstance(c).state(source.id)!=null)throw new AssertionError("Corrupt disposable cache was not ignored");cache.clear();
+        return "CACHE_STORE_OK: 50 boards x 100 hashes = "+bytes.length+" bytes; reload, pruning, delete, restore and corrupt-cache fallback passed.";
+    }
     private void main(Runnable r){AtomicReference<Throwable> error=new AtomicReference<>();runOnMainSync(()->{try{r.run();}catch(Throwable t){error.set(t);}});if(error.get()!=null)throw new AssertionError(error.get());}
     private void idle(){waitForIdleSync();SystemClock.sleep(250);}
     private Dialog dialog(String fieldName){try{var f=MainActivity.class.getDeclaredField(fieldName);f.setAccessible(true);return (Dialog)f.get(activity);}catch(Exception e){throw new AssertionError(e);}}

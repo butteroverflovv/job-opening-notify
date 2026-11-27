@@ -100,6 +100,7 @@ public class CoreTests {
         CatalogTests.run();
         GoyangTests.run();
         InternationalTests.run();
+        ListingCacheTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
