@@ -34,17 +34,22 @@ jobs:
         run: |
           javac -encoding UTF-8 -cp /tmp/school-adapter-classes -d /tmp/school-adapter-classes tools/PortalAdapterCheck.java
           java -cp /tmp/school-adapter-classes PortalAdapterCheck
+      - name: Verify requested school catalog
+        continue-on-error: true
+        run: |
+          javac -encoding UTF-8 -cp /tmp/school-adapter-classes -d /tmp/school-adapter-classes tools/SchoolCatalogCheck.java
+          java -cp /tmp/school-adapter-classes SchoolCatalogCheck
       - name: Build and lint
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleRelease :app:lintRelease
-          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.11-unsigned.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.12-unsigned.apk
           cp "${ANDROID_HOME}/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: history-jobs-0.1.11-unsigned
+          name: history-jobs-0.1.12-unsigned
           path: |
-            history-jobs-0.1.11-unsigned.apk
+            history-jobs-0.1.12-unsigned.apk
             apksigner.jar
           retention-days: 30
       - name: Save build and source diagnostics
@@ -56,6 +61,7 @@ jobs:
             diagnostics/
             science-diagnostics/
             portal-diagnostics/
+            catalog-live/
             app/build/reports/lint-results-release.*
           retention-days: 7
 

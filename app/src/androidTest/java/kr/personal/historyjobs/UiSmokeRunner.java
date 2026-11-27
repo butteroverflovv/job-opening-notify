@@ -24,6 +24,8 @@ public final class UiSmokeRunner extends Instrumentation {
         c.getSharedPreferences("settings",0).edit().remove("noticeRegions").remove("noticeSources").putBoolean("permissionAsked",true).putBoolean("automatic",false).putBoolean("alerts",false).apply();
         Store store=Store.get(c);store.restore("{\"schema\":1,\"selectionVersion\":2,\"sources\":[],\"notices\":[]}");long now=System.currentTimeMillis();
         if(store.source("sen-regular")==null||store.source("goe-regular")==null)throw new AssertionError("Regular boards not added on migration");
+        if(store.source("sejong-science")==null||store.source("anyang-fl")==null||!store.source("dongducheon-fl").keywords.equals(List.of("교사 AND 공고")))throw new AssertionError("School catalog migration or AND seed missing");
+        store.removeSource("sejong-science");store.restore(store.exportData().toString());if(store.source("sejong-science")!=null)throw new AssertionError("Deleted school returned after restore");
         store.removeSource("goe-regular");store.restore(store.exportData().toString());if(store.source("goe-regular")!=null)throw new AssertionError("Deleted regular board returned after backup restore");
         for(Source s:store.sources())store.removeSource(s.id);
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
@@ -65,10 +67,10 @@ public final class UiSmokeRunner extends Instrumentation {
         click("region_filter");click("filter_reset");click("region_apply");expect("notice_preview0",true);expect("notice_school-broad",true);if(c.getSharedPreferences("settings",0).contains("noticeSources"))throw new AssertionError("All-board filter should include future boards");
         click("region_filter");click("filter_board_school");main(()->((AlertDialog)dialog("regionPicker")).getButton(AlertDialog.BUTTON_NEGATIVE).performClick());idle();expect("notice_school-broad",true);
         click("nav_sources");oneLineHeading();visible("nav_sources");capture("05-sources");
-        Source originalSchool=store.source("school");click("edit_source_school");main(()->{((EditText)find("source_keywords")).setText("생활 지도 OR 면접 공고");((Spinner)find("source_region")).setSelection(0);});click("source_save");
-        if(!store.source("school").keywords.equals(List.of("생활 지도","면접 공고"))||!store.source("school").region.equals("경기")||store.notices().get("school-custom").status!=Status.MATCH||store.notices().get("school-broad").status!=Status.EXCLUDED)throw new AssertionError("Keyword/region editing did not reclassify saved notices");
+        Source originalSchool=store.source("school");click("edit_source_school");main(()->{((EditText)find("source_keywords")).setText("생활 지도 AND 모집 OR 면접 공고");((Spinner)find("source_region")).setSelection(0);});click("source_save");
+        if(!store.source("school").keywords.equals(List.of("생활 지도 AND 모집","면접 공고"))||!store.source("school").region.equals("경기")||store.notices().get("school-custom").status!=Status.MATCH||store.notices().get("school-broad").status!=Status.EXCLUDED)throw new AssertionError("Keyword/region editing did not reclassify saved notices");
         Notice stale=recentNotice();stale.id="stale";stale.title="교직원 채용";stale.url=server.base()+"/stale";if(!store.merge(originalSchool,List.of(stale)).isEmpty()||store.notices().containsKey("stale"))throw new AssertionError("Stale source request overwrote edited keyword config");
-        click("nav_notices");expect("notice_school-custom",true);expect("notice_school-broad",false);store.restore(store.exportData().toString());if(!store.source("school").keywords.equals(List.of("생활 지도","면접 공고"))||store.notices().get("school-custom").published.isEmpty())throw new AssertionError("Keyword/publication backup failed");
+        click("nav_notices");expect("notice_school-custom",true);expect("notice_school-broad",false);store.restore(store.exportData().toString());if(!store.source("school").keywords.equals(List.of("생활 지도 AND 모집","면접 공고"))||store.notices().get("school-custom").published.isEmpty())throw new AssertionError("Keyword/publication backup failed");
         store.putSource(originalSchool);click("nav_sources");
         click("source_enabled_sen");if(store.source("sen").enabled)throw new AssertionError("Source switch failed");click("source_enabled_sen");
         click("add_source");capture("06-source-form");sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);idle();

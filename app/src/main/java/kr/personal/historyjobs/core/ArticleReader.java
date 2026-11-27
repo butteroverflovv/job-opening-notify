@@ -43,7 +43,11 @@ public final class ArticleReader {
         for(Html.Node n:root.all()){
             if(suppressed(n)||!Set.of("article","section","div","td","main").contains(n.tag))continue;
             String raw=(n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT),token=raw.replaceAll("[-_\\s]","");int score=0;
-            if(SchoolBoards.seoulBodyCell(n))score=850;
+            if(SchoolSites.aspBodyCell(url,n))score=920;
+            else if(token.equals("bovcon"))score=900;
+            else if(token.equals("tmpcontentsarea"))score=880;
+            else if(token.contains("boardreadbody"))score=860;
+            else if(SchoolBoards.seoulBodyCell(n))score=850;
             else if(token.contains("contextview"))score=800;
             else if(token.contains("bbsvcont")||token.contains("bbsvcn"))score=780;
             else if(token.contains("jobdetailareacon"))score=750;
@@ -57,7 +61,7 @@ public final class ArticleReader {
         List<String> frames=new ArrayList<>();Html.Node scope=chosen==null?root:chosen;
         for(Html.Node n:scope.all())if(n.tag.equals("iframe")&&!suppressed(n)){
             String u=Html.resolve(url,n.attr("src")),hint=(u+" "+n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT);
-            if(!u.isEmpty()&&Html.sameHost(url,u)&&!isFileUrl(u)&&!hint.matches(".*(?:preview|viewer|file|map|video|youtube).*"))frames.add(u);
+            if(!u.isEmpty()&&Html.sameHost(url,u)&&!isFileUrl(u)&&!hint.matches(".*(?:preview|viewer|file|map|video|youtube|comment|reply).*"))frames.add(u);
         }
         if(chosen==null)return new Part("",frames,false);
         StringBuilder b=new StringBuilder();boolean[] image={false};append(chosen,b,image);

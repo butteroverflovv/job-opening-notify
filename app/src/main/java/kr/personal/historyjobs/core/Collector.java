@@ -15,7 +15,8 @@ public final class Collector {
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
         Set<String> visited=new HashSet<>(),bodies=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
         List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;long stopAt=System.nanoTime()+35_000_000_000L;
-        while(!queue.isEmpty()&&pages<20&&System.nanoTime()<stopAt&&!Thread.currentThread().isInterrupted()){
+        int pageLimit=BoardParser.kind(source).equals("SCHOOL_ASP")?80:20;
+        while(!queue.isEmpty()&&pages<pageLimit&&System.nanoTime()<stopAt&&!Thread.currentThread().isInterrupted()){
             String page=queue.remove();if(!visited.add(page))continue;
             try{
                 Net.Response response=net.get(page,4_000_000,source.url);String html=response.text();

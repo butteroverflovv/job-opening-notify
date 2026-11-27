@@ -23,13 +23,13 @@ public final class SchoolBoards {
         if(form==null||!html.contains(SEN_LIST))return "";
         Map<String,String> fields=new LinkedHashMap<>();Set<String> allowed=Set.of("bbsId","bbsTyCode","customRecordCountPerPage","pageIndex","searchCondition","searchKeyword");
         for(Html.Node n:form.all())if(n.tag.equals("input")&&allowed.contains(n.attr("name"))&&!insideScript(n))fields.put(n.attr("name"),n.attr("value"));
-        if(!fields.getOrDefault("bbsId","").matches("BBSMSTR_[0-9]{1,30}"))return "";
+        if(!fields.getOrDefault("bbsId","").matches("BBS(?:MSTR)?_[0-9]{1,30}"))return "";
         fields.put("customRecordCountPerPage",detail?"10":"50");fields.putIfAbsent("pageIndex","1");
         if(!fields.get("pageIndex").matches("[0-9]{1,4}"))return "";
         String id=query(page).getOrDefault("nttId","");
         if(detail){if(!id.matches("[0-9]{1,20}"))return "";fields.put("nttId",id);}
         else if(!id.isEmpty())return "";
-        return fieldsUrl(Html.resolve(page,detail?SEN_DETAIL:SEN_LIST),fields);
+        return fieldsUrl(Html.resolve(page,detail?(fields.get("bbsId").startsWith("BBS_")?"/dggb/module/board/selectBoardDetailAjax.do":SEN_DETAIL):SEN_LIST),fields);
     }
     public static String articleRequest(String page,String html){try{if(!URI.create(page).getPath().matches("/[0-9]+/subMenu\\.do"))return "";}catch(Exception e){return "";}return seoulRequest(page,html,Html.parse(html),true);}
     public static String recordUrl(Source source,String page,Html.Node node){
@@ -42,7 +42,7 @@ public final class SchoolBoards {
             fields.put("nttSn",id);return fieldsUrl(endpoint,fields);
         }
         if(type.equals("SCHOOL_SEN")){
-            Matcher m=Pattern.compile("^\\s*(?:return\\s+)?fnView\\(\\s*['\"](BBSMSTR_[0-9]{1,30})['\"]\\s*,\\s*['\"]?([0-9]{1,20})['\"]?\\s*\\)\\s*;?\\s*(?:return\\s+false;?)?\\s*$").matcher(node.attr("onclick"));
+            Matcher m=Pattern.compile("^\\s*(?:return\\s+)?fnView\\(\\s*['\"](BBS(?:MSTR)?_[0-9]{1,30})['\"]\\s*,\\s*['\"]?([0-9]{1,20})['\"]?\\s*\\)\\s*;?\\s*(?:return\\s+false;?)?\\s*$").matcher(node.attr("onclick"));
             if(!m.matches())return "";
             String expected=query(page).getOrDefault("bbsId","");if(!expected.isEmpty()&&!expected.equals(m.group(1)))return "";
             String publicPage=source.url;

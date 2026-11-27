@@ -40,6 +40,6 @@ public final class PortalTests {
         ok(sources.size()==4,"old catalog adds both regular boards exactly once");
         Source custom=sen.copy();custom.id="my-regular";custom.name="내 정규채용";custom.enabled=false;custom.keywords=List.of("역사 채용");sources=new ArrayList<>(List.of(custom));Model.addRegularSources(sources);
         ok(sources.size()==2&&sources.get(0)==custom&&!custom.enabled&&custom.keywords.equals(List.of("역사 채용")),"migration recognizes previously added category and preserves settings");
-        ok(Model.defaults().size()==5&&Model.defaults().get(2).id.equals("tokyo"),"new installs retain existing defaults and append regular boards");
+        ok(Model.defaults().size()==19&&Model.defaults().get(2).id.equals("tokyo"),"new installs retain existing defaults and append regular boards");
     }
 }

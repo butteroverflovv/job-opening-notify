@@ -14,7 +14,12 @@ public final class Net {
             String hint=mime+" "+new String(bytes,0,Math.min(bytes.length,4096),StandardCharsets.ISO_8859_1);
             Matcher m=Pattern.compile("charset\\s*=\\s*['\"]?([A-Za-z0-9_-]+)",Pattern.CASE_INSENSITIVE).matcher(hint);
             Charset c=StandardCharsets.UTF_8;if(m.find())try{c=Charset.forName(m.group(1));}catch(Exception ignored){}
-            return new String(bytes,c);
+            String decoded=new String(bytes,c);
+            if(decoded.indexOf('\uFFFD')>=0){
+                Matcher meta=Pattern.compile("(?i)charset\\s*=\\s*['\"]?([A-Za-z0-9_-]+)").matcher(new String(bytes,0,Math.min(bytes.length,4096),StandardCharsets.ISO_8859_1));
+                if(meta.find())try{String candidate=new String(bytes,Charset.forName(meta.group(1)));if(candidate.chars().filter(x->x==0xFFFD).count()<decoded.chars().filter(x->x==0xFFFD).count())decoded=candidate;}catch(Exception ignored){}
+            }
+            return decoded;
         }
     }
     public static Response get(String input,int max,String referer)throws IOException{
@@ -30,7 +35,7 @@ public final class Net {
             if(!Set.of("https","http").contains(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null)throw new IOException("지원하지 않는 주소");
             HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
             c.setConnectTimeout(15_000);c.setReadTimeout(20_000);c.setInstanceFollowRedirects(false);
-            c.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1");
+            c.setRequestProperty("User-Agent",u.getHost().matches("(?i)(?:www\\.)?gcfl\\.or\\.kr")?"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 HistoryJobs/0.1":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1");
             c.setRequestProperty("Accept",htmlOnly?"text/html,application/xhtml+xml,text/plain;q=0.9":"text/html,application/xhtml+xml,application/pdf,*/*;q=0.8");
             if(referer!=null&&!referer.trim().isEmpty())c.setRequestProperty("Referer",referer);
             synchronized(COOKIES){for(var header:COOKIES.get(u,Collections.emptyMap()).entrySet())if(!header.getValue().isEmpty())c.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));}
