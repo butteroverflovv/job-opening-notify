@@ -20,9 +20,23 @@ public final class Selection {
     }
     private static List<String> terms(String clause){return Arrays.asList(clause.split("(?i)(?<!\\S)and(?!\\S)",-1));}
     public static boolean titleMatches(String title,List<String> words){
-        if(title==null||words==null)return false;String text=compact(title);
-        for(String clause:keywords(String.join("\n",words))){boolean all=true;for(String term:terms(clause)){String value=compact(term);if(value.isEmpty()||!text.contains(value)){all=false;break;}}if(all)return true;}
+        if(title==null||words==null)return false;
+        String spaced=Normalizer.normalize(title,Normalizer.Form.NFC).replaceAll("[\\s\\p{Z}\\u200B]+"," ").toLowerCase(Locale.ROOT),text=spaced.replace(" ","");
+        int[] positions=new int[text.length()];for(int i=0,j=0;i<spaced.length();i++)if(spaced.charAt(i)!=' ')positions[j++]=i;
+        for(String clause:keywords(String.join("\n",words))){boolean all=true;for(String term:terms(clause)){if(!containsTerm(spaced,text,positions,compact(term))){all=false;break;}}if(all)return true;}
         return false;
+    }
+    private static boolean containsTerm(String spaced,String text,int[] positions,String term){
+        if(term.isEmpty())return false;
+        for(int at=text.indexOf(term);at>=0;at=text.indexOf(term,at+1)){
+            int start=positions[at],end=positions[at+term.length()-1]+1;String span=spaced.substring(start,end);
+            if(span.indexOf(' ')<0)return true;
+            boolean wordStart=start==0||!Character.isLetterOrDigit(spaced.charAt(start-1)),wordEnd=end==spaced.length()||!Character.isLetterOrDigit(spaced.charAt(end));
+            // Preserve useful spacing variants (기간제 교원 / 교 사) without
+            // inventing a short word from two unrelated token fragments:
+            // 학교 사무직원 must never manufacture 교사.
+            if(wordStart||wordEnd||span.indexOf(' ')>=2&&span.length()-span.lastIndexOf(' ')-1>=2)return true;
+        }return false;
     }
     public static boolean validKeywords(List<String> words){return words!=null&&!words.isEmpty()&&words.size()<=30&&words.stream().allMatch(w->w.length()<=100&&terms(w).size()<=10&&terms(w).stream().allMatch(t->!compact(t).isEmpty()));}
     public static String region(String raw){if("서울".equals(raw))return "서울";if("경기".equals(raw))return "경기";return "기타 지역";}

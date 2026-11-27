@@ -32,6 +32,7 @@ public final class UiSmokeRunner extends Instrumentation {
         for(Source s:store.sources())store.removeSource(s.id);
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
         String cacheSummary=cacheStorageChecks(c,store,now);
+        String keywordSummary=storedKeywordChecks(store);
         String timingSummary=timingChecks(c,store);c.getSharedPreferences("settings",0).edit().putLong("lastRun",now).putLong("lastRunDuration",65_000).apply();
         Source src=store.source("sen");List<Notice> notices=new ArrayList<>();
         String[] titles={"가람중학교 역사 기간제교원 채용 공고","나래고등학교 2027학년도 역사과 기간제교원 채용 재공고 (2차)","다온중학교 역사 기간제교원 채용"};
@@ -105,9 +106,15 @@ public final class UiSmokeRunner extends Instrumentation {
         Instrumentation.ActivityMonitor originalMonitor=addMonitor(InspectActivity.class.getName(),new Instrumentation.ActivityResult(Activity.RESULT_OK,null),true);
         main(()->{try{var open=MainActivity.class.getDeclaredMethod("open",String.class);open.setAccessible(true);open.invoke(activity,GoyangBoard.article("https://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","6807"));}catch(Exception e){throw new AssertionError(e);}});idle();
         if(originalMonitor.getHits()!=1)throw new AssertionError("Goyang original must open in POST-capable page viewer");removeMonitor(originalMonitor);
-        result.putString("stream","OK (1 test)\n"+cacheSummary+"\n"+timingSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
+        result.putString("stream","OK (1 test)\n"+cacheSummary+"\n"+timingSummary+"\n"+keywordSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}finally{if(server!=null)server.close();}}
     private static Notice recentNotice(){Notice n=new Notice();n.published=java.time.LocalDate.now(Classifier.KST).toString();return n;}
+    private String storedKeywordChecks(Store store)throws Exception{
+        String original=store.exportData().toString();Source anyang=store.source("anyang-fl");org.json.JSONObject data=store.exportData();
+        data.getJSONArray("notices").put(new org.json.JSONObject().put("id","old-anyan-false").put("sourceId",anyang.id).put("sourceUrl",anyang.url).put("url",anyang.url+"&nttSn=9001").put("title","2026학년도 안양외국어고등학교 사무직원(시설관리 대체직) 공개경쟁채용(2차) 최종 합격자 공고").put("published","2026-11-27").put("status","MATCH").put("favorite",true));
+        store.restore(data.toString());Notice fixed=store.notices().get("old-anyan-false");if(fixed.status!=Status.EXCLUDED||Selection.eligible(fixed,java.time.LocalDate.of(2026,11,27))||!fixed.favorite)throw new AssertionError("Stored Anyang false match was not reclassified safely");store.restore(original);
+        return "KEYWORDS_STORAGE_OK: saved Anyang school/office false match excluded; bookmark retained.";
+    }
     private String timingChecks(Context c,Store store)throws Exception{
         String before=store.exportData().toString();for(Source s:store.sources()){s.enabled=false;store.putSource(s);}
         Source timed=Model.source("timing-check","시간 검사",server.base()+"/timed-list","GENERIC","서울","");store.putSource(timed);long start=SystemClock.elapsedRealtime();
