@@ -1,6 +1,6 @@
 import urllib.request,urllib.parse,pathlib,re,json,concurrent.futures
 out=pathlib.Path('school-catalog-diagnostics');out.mkdir(exist_ok=True)
-sites=[["gc-main","과천","https://www.gcfl.or.kr/main/main.asp?viewPC=","경기","채용"],["gy-root","고양","https://www.gyfl.hs.kr/","경기","교사"],["gy-http","고양","http://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","경기","교사"],["gy-nonwww","고양","https://gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","경기","교사"],["suwon-http","수원","http://www.sawl.hs.kr/sys/bbs/board.php?bo_table=030601","경기","교사"],["suwon-nonwww","수원","https://sawl.hs.kr/sys/bbs/board.php?bo_table=030601","경기","교사"],["ewha-detail","이화","https://www.ewha-gfh.hs.kr/0201/1334","서울","교사"],["gimpo-detail","김포","https://gfl.hs.kr/?act=board.read&code=2312&num=1007&id=1013","경기","교사"],["myungduk-detail","명덕","http://mdfh.or.kr/?act=news.main&comm=com&sid=1262&mcode=1310","서울","교사"],["myungduk-fl","명덕외국어고등학교","http://mdfh.or.kr/?act=news.main&comm=com&mcode=1310","서울","교사"],["gimpo-fl","김포외국어고등학교","https://gfl.hs.kr/?act=board.list&code=2312","경기","교사"]]
+sites=[["gc-notice","과천","https://www.gcfl.or.kr/notification/notice.asp","경기","채용"],["gc-read","과천","https://www.gcfl.or.kr/notification/notice_read.asp?idx=2416&lv1=2416&lv3=0&page=1","경기","채용"],["gy-simple","고양","https://www.gyfl.hs.kr/main/main.php","경기","교사"],["gy-default","고양","https://www.gyfl.hs.kr/main/main.php?categoryid=12","경기","교사"],["suwon-root","수원","https://www.sawl.hs.kr/","경기","교사"]]
 def get(item):
  key,name,url,region,words=item
  result={'id':key,'url':url}
@@ -14,7 +14,10 @@ def get(item):
   result['frames']=re.findall(r'<(?:i?frame)[^>]+src=[\'"]([^\'"]+)',text,re.I)
   result['scripts']=re.findall(r'<script[^>]+src=[\'"]([^\'"]+)',text,re.I)[-12:]
   result['forms']=re.findall(r'<(?:form|input)[^>]+>',text,re.I)[-25:]
- except Exception as e:result['error']=str(e)
+ except Exception as e:
+  result['error']=str(e)
+  if isinstance(e,urllib.error.HTTPError):
+   raw=e.read(100000);(out/(key+'-error.bin')).write_bytes(raw);result['errorBody']=raw.decode('utf-8',errors='replace')[:1000]
  return result
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool: results=list(pool.map(get,sites))
 (out/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
