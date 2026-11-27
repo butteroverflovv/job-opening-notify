@@ -9,9 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/school_catalog_probe.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: |
+          mkdir -p /tmp/catalog-classes
+          javac -encoding UTF-8 -d /tmp/catalog-classes app/src/main/java/kr/personal/historyjobs/core/*.java tools/SchoolCatalogCheck.java
+          java -cp /tmp/catalog-classes SchoolCatalogCheck
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: school-catalog-diagnostics
-          path: school-catalog-diagnostics/
+          path: catalog-live/

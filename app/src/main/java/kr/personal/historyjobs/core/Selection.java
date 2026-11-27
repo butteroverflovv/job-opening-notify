@@ -16,10 +16,15 @@ public final class Selection {
     }
     public static String compact(String text){return Normalizer.normalize(Objects.toString(text,""),Normalizer.Form.NFC).replaceAll("[\\s\\p{Z}\\u200B]+","").toLowerCase(Locale.ROOT);}
     public static List<String> keywords(String input){
-        LinkedHashMap<String,String> unique=new LinkedHashMap<>();for(String part:Objects.toString(input,"").split("(?i)[,，\\n\\r]+|(?<!\\S)or(?!\\S)")){String t=part.trim();String key=compact(t);if(!key.isEmpty())unique.putIfAbsent(key,t);}return new ArrayList<>(unique.values());
+        LinkedHashMap<String,String> unique=new LinkedHashMap<>();for(String part:Objects.toString(input,"").split("(?i)[,，\\n\\r]+|(?<!\\S)or(?!\\S)")){String t=part.trim();String key=terms(t).stream().map(Selection::compact).collect(java.util.stream.Collectors.joining("\u0001"));if(!compact(t).isEmpty())unique.putIfAbsent(key,t);}return new ArrayList<>(unique.values());
     }
-    public static boolean titleMatches(String title,List<String> words){if(title==null||words==null)return false;String t=compact(title);for(String k:keywords(String.join("\n",words))){String w=compact(k);if(!w.isEmpty()&&t.contains(w))return true;}return false;}
-    public static boolean validKeywords(List<String> words){return words!=null&&!words.isEmpty()&&words.size()<=30&&words.stream().allMatch(w->!compact(w).isEmpty()&&w.length()<=100);}
+    private static List<String> terms(String clause){return Arrays.asList(clause.split("(?i)(?<!\\S)and(?!\\S)",-1));}
+    public static boolean titleMatches(String title,List<String> words){
+        if(title==null||words==null)return false;String text=compact(title);
+        for(String clause:keywords(String.join("\n",words))){boolean all=true;for(String term:terms(clause)){String value=compact(term);if(value.isEmpty()||!text.contains(value)){all=false;break;}}if(all)return true;}
+        return false;
+    }
+    public static boolean validKeywords(List<String> words){return words!=null&&!words.isEmpty()&&words.size()<=30&&words.stream().allMatch(w->w.length()<=100&&terms(w).size()<=10&&terms(w).stream().allMatch(t->!compact(t).isEmpty()));}
     public static String region(String raw){if("서울".equals(raw))return "서울";if("경기".equals(raw))return "경기";return "기타 지역";}
     public static boolean regionMatches(String notice,Set<String> selected){return selected.contains(region(notice));}
     private static final Pattern DATE=Pattern.compile("(?<![0-9])((?:19|20)[0-9]{2})\\s*[./년-]\\s*([0-9]{1,2})\\s*[./월-]\\s*([0-9]{1,2})(?:일|\\.)?(?![0-9])");

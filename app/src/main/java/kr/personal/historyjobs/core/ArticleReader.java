@@ -43,7 +43,10 @@ public final class ArticleReader {
         for(Html.Node n:root.all()){
             if(suppressed(n)||!Set.of("article","section","div","td","main").contains(n.tag))continue;
             String raw=(n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT),token=raw.replaceAll("[-_\\s]","");int score=0;
-            if(SchoolBoards.seoulBodyCell(n))score=850;
+            if(token.equals("bovcon"))score=900;
+            else if(token.equals("tmpcontentsarea"))score=880;
+            else if(token.contains("boardreadbody"))score=860;
+            else if(SchoolBoards.seoulBodyCell(n))score=850;
             else if(token.contains("contextview"))score=800;
             else if(token.contains("bbsvcont")||token.contains("bbsvcn"))score=780;
             else if(token.contains("jobdetailareacon"))score=750;
