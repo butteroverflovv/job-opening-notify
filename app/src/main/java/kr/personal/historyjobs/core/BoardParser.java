@@ -39,7 +39,7 @@ public final class BoardParser {
                         Html.Node box=n.parent;
                         for(int k=0;k<4&&box!=null;k++,box=box.parent){String t=box.text();if(t.contains("채용")&&t.length()<1800){title=t.replaceAll("\\s+"," ");break;}}
                     }
-                    links.put(url,new Link(title,url,n.text(),Selection.publishedIn(n),Selection.pinned(n)));
+                    links.put(url,new Link(title,url,n.text(),Selection.publishedIn(n),Selection.pinned(n),PortalFields.duty(source,n)));
                 }
             } else if(!url.trim().isEmpty()&&Html.sameHost(page,url)&&!url.equals(page)&&isPage(raw,text))pages.add(url);
             if(handler.matches("(?is).*(?:page|paging|goPage|movePage|searchPage).*")){

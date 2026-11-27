@@ -29,17 +29,22 @@ jobs:
           mkdir -p /tmp/school-adapter-classes
           javac -encoding UTF-8 -d /tmp/school-adapter-classes app/src/main/java/kr/personal/historyjobs/core/*.java tools/SchoolAdapterCheck.java
           java -cp /tmp/school-adapter-classes SchoolAdapterCheck
+      - name: Verify public portal categories and duties
+        continue-on-error: true
+        run: |
+          javac -encoding UTF-8 -cp /tmp/school-adapter-classes -d /tmp/school-adapter-classes tools/PortalAdapterCheck.java
+          java -cp /tmp/school-adapter-classes PortalAdapterCheck
       - name: Build and lint
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleRelease :app:lintRelease
-          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.10-unsigned.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.11-unsigned.apk
           cp "${ANDROID_HOME}/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: history-jobs-0.1.10-unsigned
+          name: history-jobs-0.1.11-unsigned
           path: |
-            history-jobs-0.1.10-unsigned.apk
+            history-jobs-0.1.11-unsigned.apk
             apksigner.jar
           retention-days: 30
       - name: Save build and source diagnostics
@@ -50,6 +55,7 @@ jobs:
           path: |
             diagnostics/
             science-diagnostics/
+            portal-diagnostics/
             app/build/reports/lint-results-release.*
           retention-days: 7
 
