@@ -16,7 +16,10 @@ public final class NoticeAndDateTests {
         Notice old=new Notice();old.id="old";old.firstSeen=10;old.lastSeen=100;old.deadline=NOW+100;
         Notice fresh=new Notice();fresh.id="new";fresh.firstSeen=20;fresh.lastSeen=20;fresh.deadline=NOW+200;
         List<Notice> notices=new ArrayList<>(List.of(fresh,old));notices.sort(NoticeOrder.comparator(false,NOW));ok(notices.get(0)==old,"deadline mode keeps the nearer future deadline first");
-        notices.sort(NoticeOrder.comparator(true,NOW));ok(notices.get(0)==fresh,"recent mode uses first discovery rather than last recheck");
+        old.firstSeen=30;old.published="2026-11-26";fresh.published="2026-11-27";
+        notices.sort(NoticeOrder.comparator(true,NOW));ok(notices.get(0)==fresh,"latest publication wins even when the older post was discovered more recently");
+        old.published=fresh.published;notices.sort(NoticeOrder.comparator(true,NOW));ok(notices.get(0)==old,"same-day publications retain deterministic discovery tie order");
+        old.published="";notices.sort(NoticeOrder.comparator(true,NOW));ok(notices.get(0)==fresh,"unknown publication dates follow verified dates");
         old.deadline=0;notices.sort(NoticeOrder.comparator(false,NOW));ok(notices.get(0)==fresh,"unknown deadline follows known open deadline");
         ok(GnuDates.detailPublished(detail("2026-11-27"),TODAY).equals("2026-11-27"),"Dongtan four-digit detail publication date supported");
         ok(GnuDates.detailPublished(detail("26-11-27"),TODAY).equals("2026-11-27"),"Suwon two-digit detail publication year expanded");
