@@ -26,7 +26,7 @@ public final class BoardParser {
             if(schoolUrl.isEmpty()&&(url.trim().isEmpty()||raw.startsWith("javascript:")))url=fromAction(source,page,handler);
             if(!url.trim().isEmpty()&&(Html.sameHost(source.url,url)||Html.sameHost(page,url))&&isDetail(source,url)&&!text.trim().isEmpty()){
                 Link old=links.get(url);
-                if(old==null||old.title().equals("상세보기")||old.title().equals("보기")){
+                if(old==null||old.title().equals("상세보기")||old.title().equals("보기")||(old.pinned()&&!Selection.pinned(n))){
                     String title=text;
                     for(Html.Node child:n.all()){
                         if(child.attr("class").matches(".*(?:list_title|cont_tit|board_title|subject).*" )&&!child.text().trim().isEmpty()){
@@ -44,7 +44,7 @@ public final class BoardParser {
             } else if(!url.trim().isEmpty()&&Html.sameHost(page,url)&&!url.equals(page)&&isPage(raw,text))pages.add(url);
             if(handler.matches("(?is).*(?:page|paging|goPage|movePage|searchPage).*")){
                 Matcher m=Pattern.compile("(?i)(?:goPaging|opMovePage|fnPage|goPage|movePage|searchPage|page|paging)[\\w]*\\s*\\(\\s*['\"]?(\\d{1,3})").matcher(handler);
-                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=30){String key=SchoolBoards.pageKey(source);pages.add(query(page,key,String.valueOf(p)));}}
+                if(m.find()){int p=Integer.parseInt(m.group(1));if(p>0&&p<=100000){String key=SchoolBoards.pageKey(source);pages.add(query(page,key,String.valueOf(p)));}}
             }
         }
         if(kind(source).equals("TOKYO")){

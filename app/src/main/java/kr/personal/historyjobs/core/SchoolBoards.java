@@ -24,7 +24,7 @@ public final class SchoolBoards {
         Map<String,String> fields=new LinkedHashMap<>();Set<String> allowed=Set.of("bbsId","bbsTyCode","customRecordCountPerPage","pageIndex","searchCondition","searchKeyword");
         for(Html.Node n:form.all())if(n.tag.equals("input")&&allowed.contains(n.attr("name"))&&!insideScript(n))fields.put(n.attr("name"),n.attr("value"));
         if(!fields.getOrDefault("bbsId","").matches("BBSMSTR_[0-9]{1,30}"))return "";
-        fields.put("customRecordCountPerPage","10");fields.putIfAbsent("pageIndex","1");
+        fields.put("customRecordCountPerPage",detail?"10":"50");fields.putIfAbsent("pageIndex","1");
         if(!fields.get("pageIndex").matches("[0-9]{1,4}"))return "";
         String id=query(page).getOrDefault("nttId","");
         if(detail){if(!id.matches("[0-9]{1,20}"))return "";fields.put("nttId",id);}

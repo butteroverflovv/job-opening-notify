@@ -95,6 +95,7 @@ public class CoreTests {
         windowAndKeywordTests();
         datedCollectionTests();
         SchoolBoardTests.run();
+        PaginationTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{

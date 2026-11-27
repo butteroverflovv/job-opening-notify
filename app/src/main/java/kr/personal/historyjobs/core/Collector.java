@@ -24,9 +24,9 @@ public final class Collector {
                 if(!list.warning().trim().isEmpty())throw new IllegalStateException(list.warning());
                 pages++;
                 for(Link l:list.items())listings.putIfAbsent(l.url(),l);
-                if(pages>1&&Selection.oldTokyoPage(source,list.items(),today)){queue.clear();break;}
+                if(Selection.oldPage(list.items(),today)){queue.clear();break;}
                 List<String> next=Selection.nextPages(source,response.url(),list.pages());
-                if(BoardParser.kind(source).equals("TOKYO")&&next.isEmpty()&&list.pages().stream().anyMatch(p->Selection.tokyoPage(p)>Selection.tokyoPage(response.url())+1)){partial=true;errors.add("다음 페이지 주소를 확인하지 못해 일부 목록만 확인했어요.");}
+                if(next.isEmpty()&&list.pages().stream().anyMatch(p->Selection.pageNumber(source,p)>Selection.pageNumber(source,response.url())+1)){partial=true;errors.add("다음 페이지 주소를 확인하지 못해 일부 목록만 확인했어요.");}
                 for(String p:next)if(!visited.contains(p))queue.add(p);
             }catch(Exception e){if(pages==0)throw e;errors.add("목록 일부: "+shortError(e));partial=true;}
         }

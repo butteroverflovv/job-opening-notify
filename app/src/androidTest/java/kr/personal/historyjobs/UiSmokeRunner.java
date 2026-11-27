@@ -21,7 +21,7 @@ public final class UiSmokeRunner extends Instrumentation {
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     @Override public void onStart(){Bundle result=new Bundle();try{
         server=new PageServer();Context c=getTargetContext();c.getSharedPreferences("notified",0).edit().clear().apply();screenshots=new File(c.getExternalFilesDir(null),"ui-screenshots");screenshots.mkdirs();
-        c.getSharedPreferences("settings",0).edit().remove("noticeRegions").putBoolean("permissionAsked",true).putBoolean("automatic",false).putBoolean("alerts",false).apply();
+        c.getSharedPreferences("settings",0).edit().remove("noticeRegions").remove("noticeSources").putBoolean("permissionAsked",true).putBoolean("automatic",false).putBoolean("alerts",false).apply();
         Store store=Store.get(c);store.restore("{\"schema\":1,\"selectionVersion\":2,\"sources\":[],\"notices\":[]}");long now=System.currentTimeMillis();
         for(Source s:store.sources())store.removeSource(s.id);
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
@@ -56,6 +56,10 @@ public final class UiSmokeRunner extends Instrumentation {
         chooseRegions(Set.of(1));expect("notice_preview0",true);expect("notice_school-broad",false);if(!c.getSharedPreferences("settings",0).getStringSet("noticeRegions",Set.of()).equals(Set.of("서울")))throw new AssertionError("Region filter not saved");
         click("filter_favorite");expect("notice_old-post",false);expect("notice_old-school-year",false);expect("notice_preview0",true);click("filter_all");expect("notice_school-broad",false);
         chooseRegions(Set.of(2));expect("notice_preview0",false);expect("notice_school-broad",true);capture("11-other-region");chooseRegions(Set.of(0,1,2));
+        chooseBoards(Set.of("school"));expect("notice_preview0",false);expect("notice_school-broad",true);if(!c.getSharedPreferences("settings",0).getStringSet("noticeSources",Set.of()).equals(Set.of("school")))throw new AssertionError("Board filter not saved");
+        chooseRegions(Set.of(1));expect("notice_school-broad",false);expect("notice_preview0",false);
+        click("region_filter");click("filter_reset");click("region_apply");expect("notice_preview0",true);expect("notice_school-broad",true);if(c.getSharedPreferences("settings",0).contains("noticeSources"))throw new AssertionError("All-board filter should include future boards");
+        click("region_filter");click("filter_board_school");main(()->((AlertDialog)dialog("regionPicker")).getButton(AlertDialog.BUTTON_NEGATIVE).performClick());idle();expect("notice_school-broad",true);
         click("nav_sources");oneLineHeading();visible("nav_sources");capture("05-sources");
         Source originalSchool=store.source("school");click("edit_source_school");main(()->{((EditText)find("source_keywords")).setText("생활 지도 OR 면접 공고");((Spinner)find("source_region")).setSelection(0);});click("source_save");
         if(!store.source("school").keywords.equals(List.of("생활 지도","면접 공고"))||!store.source("school").region.equals("경기")||store.notices().get("school-custom").status!=Status.MATCH||store.notices().get("school-broad").status!=Status.EXCLUDED)throw new AssertionError("Keyword/region editing did not reclassify saved notices");
@@ -80,7 +84,8 @@ public final class UiSmokeRunner extends Instrumentation {
     private void idle(){waitForIdleSync();SystemClock.sleep(250);}
     private Dialog dialog(String fieldName){try{var f=MainActivity.class.getDeclaredField(fieldName);f.setAccessible(true);return (Dialog)f.get(activity);}catch(Exception e){throw new AssertionError(e);}}
     private View find(String tag){View v=activity.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;for(String field:new String[]{"articleDialog","regionPicker","sourceEditor"}){Dialog d=dialog(field);if(d!=null){v=d.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;}}return null;}
-    private void chooseRegions(Set<Integer> selected)throws Exception{click("region_filter");main(()->{ListView list=((AlertDialog)dialog("regionPicker")).getListView();for(int i=0;i<3;i++)if(list.isItemChecked(i)!=selected.contains(i))list.performItemClick(list.getChildAt(i-list.getFirstVisiblePosition()),i,list.getAdapter().getItemId(i));});if(selected.equals(Set.of(1)))capture("10-region-filter");click("region_apply");}
+    private void chooseRegions(Set<Integer> selected)throws Exception{click("region_filter");main(()->{String[] names={"경기","서울","기타 지역"};for(int i=0;i<names.length;i++)((CheckBox)find("filter_region_"+names[i])).setChecked(selected.contains(i));});if(selected.equals(Set.of(1)))capture("10-region-filter");click("region_apply");}
+    private void chooseBoards(Set<String> selected)throws Exception{click("region_filter");main(()->{for(Source s:Store.get(getTargetContext()).sources())((CheckBox)find("filter_board_"+s.id)).setChecked(selected.contains(s.id));});capture("12-board-filter");click("region_apply");}
 
     private void click(String tag){main(()->{View v=find(tag);if(v==null)throw new AssertionError("Missing "+tag);if(!v.isEnabled()||!v.isClickable())throw new AssertionError("Cannot click "+tag);v.performClick();});idle();}
     private void expect(String tag,boolean present){main(()->{if((find(tag)!=null)!=present)throw new AssertionError("Unexpected presence "+tag);});}

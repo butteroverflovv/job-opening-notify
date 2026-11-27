@@ -61,14 +61,25 @@ public final class Selection {
             if(scope.tag.equals("li")||scope.tag.equals("article"))break;
         }return "";
     }
-    public static boolean pinned(Html.Node n){for(int i=0;n!=null&&i<4;i++,n=n.parent){String token=(n.attr("class")+" "+n.attr("id")).toLowerCase(Locale.ROOT);if(token.matches(".*(?:^|[\\s_-])(?:notice|pinned|topnotice|top_notice|fixed)(?:$|[\\s_-]).*"))return true;if(n.tag.equals("tr")||n.tag.equals("li"))break;}return false;}
+    public static boolean pinned(Html.Node n){for(int i=0;n!=null&&i<4;i++,n=n.parent){String token=(n.attr("class")+" "+n.attr("id")).toLowerCase(Locale.ROOT);if(token.matches(".*(?:^|[\\s_-])(?:notice|pinned|topnotice|top_notice|fixed)(?:$|[\\s_-]).*"))return true;if(n.tag.equals("tr")){for(Html.Node c:n.children)if(c.tag.equals("td")||c.tag.equals("th")){if(c.text().matches("(?i)공지|고정|필독|notice"))return true;break;}}if(n.tag.equals("tr")||n.tag.equals("li"))break;}return false;}
     public static int tokyoPage(String url){Matcher m=Pattern.compile("/([0-9]+)\\.\\.").matcher(url);return m.find()?Integer.parseInt(m.group(1)):1;}
-    public static List<String> nextPages(Source s,String current,List<String> pages){
-        if(!BoardParser.kind(s).equals("TOKYO"))return pages;
-        int next=tokyoPage(current)+1;return pages.stream().filter(p->tokyoPage(p)==next).limit(1).collect(java.util.stream.Collectors.toList());
+    public static int pageNumber(Source s,String url){
+        if(BoardParser.kind(s).equals("TOKYO"))return tokyoPage(url);
+        String key=SchoolBoards.pageKey(s);
+        for(var e:SchoolBoards.query(url).entrySet())if(e.getKey().equalsIgnoreCase(key)||e.getKey().matches("(?i)page|pageIndex|pageNum|pageNo|currPage|q_currPage"))try{return Integer.parseInt(e.getValue());}catch(NumberFormatException ignored){}
+        return 1;
     }
-    public static boolean oldTokyoPage(Source s,List<Link> items,LocalDate today){
-        if(!BoardParser.kind(s).equals("TOKYO")||items.isEmpty())return false;boolean dated=false;
+    public static List<String> nextPages(Source s,String current,List<String> pages){
+        if(BoardParser.kind(s).equals("SCHOOL_SEN")&&SchoolBoards.senMenu(current))return pages;
+        int next=pageNumber(s,current)+1;
+        // Follow the immediate next page, avoiding previous pages, archive jumps and equivalent URL aliases.
+        List<String> consecutive=pages.stream().filter(p->pageNumber(s,p)==next).limit(1).collect(java.util.stream.Collectors.toList());
+        if(!consecutive.isEmpty()||!BoardParser.kind(s).equals("GENERIC"))return consecutive;
+        return pages.stream().filter(p->SchoolBoards.query(p).isEmpty()&& !p.equals(current)).limit(1).collect(java.util.stream.Collectors.toList());
+    }
+    public static boolean oldPage(List<Link> items,LocalDate today){
+        if(items.isEmpty())return false;boolean dated=false;
         for(Link l:items){if(l.pinned())continue;LocalDate d=published(l.published());if(d==null||!d.isBefore(start(today)))return false;dated=true;}return dated;
     }
+    public static boolean oldTokyoPage(Source s,List<Link> items,LocalDate today){return BoardParser.kind(s).equals("TOKYO")&&oldPage(items,today);}
 }

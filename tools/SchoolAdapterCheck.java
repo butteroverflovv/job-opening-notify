@@ -13,5 +13,9 @@ public class SchoolAdapterCheck {
    var target=list.items().stream().filter(l->Classifier.titleMatches(src,l.title())).findFirst();if(target.isEmpty())throw new AssertionError("Expected sample recruitment title not found");
    try{var body=new ArticleReader(Net::getHtml).read(target.get().url());System.out.println(src.name+" bodyCharacters="+body.body().length());Files.createDirectories(Path.of("science-diagnostics"));Files.writeString(Path.of("science-diagnostics",src.id+"-app-body.txt"),body.body());}catch(Exception e){System.out.println(src.name+" bodyError="+e.getMessage());throw e;}
   }
+  List<String> pages=new ArrayList<>();Collector collector=new Collector((url,max,referer)->{pages.add(url);return Net.get(url,max,referer);});
+  var result=collector.collect(s,Map.of(),System.currentTimeMillis());
+  System.out.println("서울과고 boundedCollection pages="+pages.size()+" listed="+result.listed()+" matches="+result.checked()+" partial="+result.partial()+" errors="+result.errors());
+  if(result.partial())throw new AssertionError("Seoul archive frontier not reached normally");
  }
 }
