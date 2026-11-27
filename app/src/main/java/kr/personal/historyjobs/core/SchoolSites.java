@@ -46,6 +46,7 @@ public final class SchoolSites {
         return link.text();
     }
     public static String published(Source source,Html.Node link){
+        if(kind(source.url).equals("SCHOOL_GNU")){String date=GnuDates.listPublished(link);if(!date.isEmpty())return date;}
         String found=Selection.publishedIn(link);if(!found.isEmpty()||kind(source.url).isEmpty())return found;
         for(Html.Node scope=link;scope!=null;scope=scope.parent){
             if(scope.tag.equals("body")||scope.tag.equals("table"))break;

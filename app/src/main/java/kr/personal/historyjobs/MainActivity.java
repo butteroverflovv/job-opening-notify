@@ -26,9 +26,9 @@ import static kr.personal.historyjobs.core.Model.*;
 public class MainActivity extends Activity {
     private static final int BG=Ui.WHITE,INK=Ui.INK,ACCENT=Ui.BROWN,MUTED=Ui.MUTED,LINE=Ui.LINE,AMBER=Ui.NEGATIVE;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
-    private final ExecutorService articleExecutor=Executors.newFixedThreadPool(2);private Dialog articleDialog;private AlertDialog regionPicker,sourceEditor,sourceDetails,sourceRegionPicker,sourceSortPicker;
+    private final ExecutorService articleExecutor=Executors.newFixedThreadPool(2);private Dialog articleDialog;private AlertDialog regionPicker,sourceEditor,sourceDetails,sourceRegionPicker,sourceSortPicker,noticeSortPicker;
     private Store store;private LinearLayout root,screen,noticeList,sourceList;private TextView progress;private LinearLayout bottomNavigation;
-    private String sourceQuery="";private Set<String> sourceRegions=new LinkedHashSet<>();private boolean sourceDescending;
+    private String sourceQuery="";private Set<String> sourceRegions=new LinkedHashSet<>();private boolean sourceDescending,noticeRecent;
     private Set<String> regionFilter=new LinkedHashSet<>();
     private Set<String> boardFilter=null; // null includes all current and future boards
     private static final String[] REGIONS={"경기","서울","기타 지역"};
@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=Store.get(this);prefs=getSharedPreferences("settings",0);regionFilter=new LinkedHashSet<>(prefs.getStringSet("noticeRegions",new LinkedHashSet<>(Arrays.asList(REGIONS))));regionFilter.retainAll(Arrays.asList(REGIONS));sourceRegions=new LinkedHashSet<>(prefs.getStringSet("sourceRegions",new LinkedHashSet<>(Arrays.asList(REGIONS))));sourceRegions.retainAll(Arrays.asList(REGIONS));if(prefs.contains("noticeSources"))boardFilter=new LinkedHashSet<>(prefs.getStringSet("noticeSources",Set.of()));
         sourceDescending=prefs.getBoolean("sourceDescending",false);
+        noticeRecent=prefs.getBoolean("noticeRecent",false);
         if(state!=null){tab=state.getInt("tab");filter=state.getInt("filter");query=state.getString("query","");closed=state.getBoolean("closed");sourceQuery=state.getString("sourceQuery","");}
         if(filter==1)filter=0;CheckWorker.schedule(this);render();
         if(Build.VERSION.SDK_INT>=33&&!prefs.getBoolean("permissionAsked",false)){
@@ -47,7 +48,7 @@ public class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle b){super.onSaveInstanceState(b);b.putInt("tab",tab);b.putInt("filter",filter);b.putString("query",query);b.putBoolean("closed",closed);b.putString("sourceQuery",sourceQuery);}
     @Override protected void onResume(){super.onResume();if(root!=null){prefs.registerOnSharedPreferenceChangeListener(settingsListener);SyncEngine.postPending(this,store);render();}}
     @Override protected void onPause(){if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(settingsListener);super.onPause();}
-    @Override protected void onDestroy(){if(sourceSortPicker!=null)sourceSortPicker.dismiss();if(sourceDetails!=null)sourceDetails.dismiss();if(sourceRegionPicker!=null)sourceRegionPicker.dismiss();if(regionPicker!=null)regionPicker.dismiss();if(sourceEditor!=null)sourceEditor.dismiss();if(articleDialog!=null)articleDialog.dismiss();articleExecutor.shutdownNow();executor.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){if(noticeSortPicker!=null)noticeSortPicker.dismiss();if(sourceSortPicker!=null)sourceSortPicker.dismiss();if(sourceDetails!=null)sourceDetails.dismiss();if(sourceRegionPicker!=null)sourceRegionPicker.dismiss();if(regionPicker!=null)regionPicker.dismiss();if(sourceEditor!=null)sourceEditor.dismiss();if(articleDialog!=null)articleDialog.dismiss();articleExecutor.shutdownNow();executor.shutdown();super.onDestroy();}
     private int dp(float n){return Ui.dp(this,n);}
     private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
@@ -81,7 +82,9 @@ public class MainActivity extends Activity {
         heading("채용공고","");
         LinearLayout sync=row();sync.setPadding(dp(14),dp(14),dp(12),dp(14));sync.setBackground(shape(Ui.FILL,0));
         LinearLayout status=col();TextView statusTitle=bold(SyncEngine.busy()?"새 공고를 확인하고 있어요":"게시판의 새 소식",13,INK);status.addView(statusTitle);space(status,5);
-        progress=text(running.trim().isEmpty()?lastRun():running,11,MUTED);progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);status.addView(progress);LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,-2,1);statusLp.rightMargin=dp(12);sync.addView(status,statusLp);
+        progress=text(running.trim().isEmpty()?lastRun():running,11,MUTED);progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);status.addView(progress);
+        if(!SyncEngine.busy()&&running.trim().isEmpty()&&prefs.contains("lastRunDuration")){space(status,4);TextView duration=text(NoticeOrder.elapsed(prefs.getLong("lastRunDuration",0)),11,MUTED);duration.setTag("run_duration");status.addView(duration);}
+        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,-2,1);statusLp.rightMargin=dp(12);sync.addView(status,statusLp);
         Button refresh=button(SyncEngine.busy()?"확인 중…":"지금 확인",true,this::sync);refresh.setTag("sync_button");refresh.setEnabled(!SyncEngine.busy());refresh.setAlpha(SyncEngine.busy()?.55f:1);sync.addView(refresh);screen.addView(sync);space(screen,24);
         LinearLayout segments=row();segments.setPadding(dp(4),dp(4),dp(4),dp(4));segments.setBackground(shape(Ui.FILL,0));
         String[] filters={"전체 공고","관심 공고"};
@@ -125,10 +128,12 @@ public class MainActivity extends Activity {
             if(!(n.title+" "+n.school+" "+n.region+" "+n.sourceName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))continue;
             found.add(n);
         }
-        found.sort(Comparator.comparingLong((Notice n)->n.deadline>now?n.deadline:Long.MAX_VALUE).thenComparing(Comparator.comparingLong((Notice n)->n.firstSeen).reversed()));
+        found.sort(NoticeOrder.comparator(noticeRecent,now));
         LinearLayout counts=row();counts.addView(bold("공고 "+found.size()+"개",14,INK),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout controls=row();controls.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);TextView sort=text((noticeRecent?"최근 확인순":"마감 가까운 순")+" ▾",12,MUTED);sort.setTag("notice_sort");sort.setPadding(dp(8),0,dp(12),0);sort.setGravity(Gravity.CENTER);sort.setMinHeight(dp(48));sort.setBackground(Ui.touch(this,BG,0,8));sort.setFocusable(true);sort.setContentDescription("공고 정렬 · "+(noticeRecent?"최근 확인순":"마감 가까운 순"));sort.setOnClickListener(v->noticeSortDialog());controls.addView(sort);
         LinearLayout filterAction=row();filterAction.setTag("region_filter");filterAction.setSelected(regionFilter.size()!=3||boardFilter!=null);filterAction.setGravity(Gravity.CENTER);filterAction.setMinimumHeight(dp(48));filterAction.setMinimumWidth(dp(64));filterAction.setPadding(dp(8),0,0,0);filterAction.setBackground(Ui.touch(this,Color.TRANSPARENT,0,8));filterAction.setContentDescription("공고 필터 · "+(regionFilter.size()==3?"전체 지역":regionFilter.isEmpty()?"선택한 지역 없음":String.join(", ",regionFilter))+" · "+(boardFilter==null?"전체 게시판":"게시판 "+boardFilter.size()+"개 선택"));filterAction.setFocusable(true);
-        ImageView filterIcon=Ui.icon(this,"filter",MUTED);filterIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);filterAction.addView(filterIcon,new LinearLayout.LayoutParams(dp(17),dp(17)));TextView filterLabel=text("필터",12,MUTED);filterLabel.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);filterLabel.setPadding(dp(6),0,0,0);filterAction.addView(filterLabel);filterAction.setOnClickListener(v->regionDialog());counts.addView(filterAction);noticeList.addView(counts);space(noticeList,8);
+        ImageView filterIcon=Ui.icon(this,"filter",MUTED);filterIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);filterAction.addView(filterIcon,new LinearLayout.LayoutParams(dp(17),dp(17)));TextView filterLabel=text("필터",12,MUTED);filterLabel.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);filterLabel.setPadding(dp(6),0,0,0);filterAction.addView(filterLabel);filterAction.setOnClickListener(v->regionDialog());controls.addView(filterAction);
+        if(getResources().getConfiguration().screenWidthDp<360||getResources().getConfiguration().fontScale>1.15f){noticeList.addView(counts);noticeList.addView(controls,new LinearLayout.LayoutParams(-1,-2));}else{counts.addView(controls);noticeList.addView(counts);}space(noticeList,8);
         if(found.isEmpty()){
             LinearLayout empty=col();empty.setGravity(Gravity.CENTER);empty.setPadding(dp(16),dp(32),dp(16),dp(32));
             ImageView illustration=Ui.icon(this,filter==2?"bookmark":"search",MUTED);illustration.setPadding(dp(16),dp(16),dp(16),dp(16));illustration.setBackground(Ui.shape(this,Ui.FILL,0,32));empty.addView(illustration,new LinearLayout.LayoutParams(dp(64),dp(64)));space(empty,20);
@@ -150,6 +155,10 @@ public class MainActivity extends Activity {
             if(n.deadline>0){long days=java.time.temporal.ChronoUnit.DAYS.between(Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate(),Instant.ofEpochMilli(n.deadline).atZone(Classifier.KST).toLocalDate());bottom.addView(badge(expired?"마감":days==0?"오늘 마감":"D-"+days,!expired&&days<=3));}
             c.addView(bottom);c.setOnClickListener(v->detail(n));
         }
+    }
+    private void noticeSortDialog(){
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("공고 정렬").setSingleChoiceItems(new String[]{"마감 가까운 순","최근 확인순"},noticeRecent?1:0,(d,which)->{noticeRecent=which==1;prefs.edit().putBoolean("noticeRecent",noticeRecent).apply();drawNotices();d.dismiss();}).setNegativeButton("취소",null).create();
+        noticeSortPicker=dialog;dialog.setOnDismissListener(d->noticeSortPicker=null);dialog.show();
     }
     private void detail(Notice n){
         store.markRead(n.id);Dialog dialog=new Dialog(this);articleDialog=dialog;dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout sheet=col();sheet.setPadding(dp(24),dp(10),dp(24),dp(24));sheet.setBackground(Ui.shape(this,BG,0,24));
@@ -260,7 +269,7 @@ public class MainActivity extends Activity {
         actionRow(a,"알림 허용·설정","","",this::requestAlerts);Ui.divider(this,a);actionRow(a,"테스트 알림 보내기","","",()->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestAlerts();return;}SyncEngine.testNotification(this);toast("휴대폰 알림창을 확인해 주세요");});Ui.divider(this,a);actionRow(a,"배터리 설정","","",()->{try{startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}catch(Exception e){openAppSettings();}});
         LinearLayout data=card(screen);sectionTitle(data,"데이터 관리","download");actionRow(data,"백업 파일 저장","","download",()->documentIntent(true));Ui.divider(this,data);actionRow(data,"백업 가져오기","","upload",()->documentIntent(false));Ui.divider(this,data);actionRow(data,"진단 내용 복사","","info",()->{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("교원 채용공고 알리미 진단",diagnostics()));toast("진단 내용을 복사했어요");});
         if(!prefs.getString("storageError","").trim().isEmpty()){space(data,10);data.addView(text(prefs.getString("storageError",""),12,AMBER));}
-        space(screen,10);screen.addView(text("공고와 읽어 온 본문은 이 휴대폰에 저장돼요.\n각 게시판에서 설정한 키워드로 제목을 확인해요. 서울·경기 교육청은 직무분야·과목에 ‘역사’가 있는 공고도 수집해요.\n게시일이 작년 1월 1일~올해 12월 31일인 글만 표시하며, 게시일을 확인할 수 없는 글은 제외해요.\n학교 게시판은 제목에 올해 또는 다음해 학년도(예: 2026학년도, 2027학년도)가 있어야 해요. 서울·경기 교육청 채용 게시판은 이 조건에서 제외돼요.\n게시판마다 최근 일반 글 100개의 변경 확인값만 기억해 빠르게 확인해요. 첫 확인과 7일마다 전체 기간을 확인하며, 깊은 페이지의 수정은 전체 확인 때 반영될 수 있어요.\n첨부파일과 지원 자격은 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.17",11,MUTED));
+        space(screen,10);screen.addView(text("공고와 읽어 온 본문은 이 휴대폰에 저장돼요.\n각 게시판에서 설정한 키워드로 제목을 확인해요. 서울·경기 교육청은 직무분야·과목에 ‘역사’가 있는 공고도 수집해요.\n게시일이 작년 1월 1일~올해 12월 31일인 글만 표시하며, 게시일을 확인할 수 없는 글은 제외해요.\n학교 게시판은 제목에 올해 또는 다음해 학년도(예: 2026학년도, 2027학년도)가 있어야 해요. 서울·경기 교육청 채용 게시판은 이 조건에서 제외돼요.\n게시판마다 최근 일반 글 100개의 변경 확인값만 기억해 빠르게 확인해요. 첫 확인과 7일마다 전체 기간을 확인하며, 깊은 페이지의 수정은 전체 확인 때 반영될 수 있어요.\n첨부파일과 지원 자격은 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.18",11,MUTED));
     }
     private void documentIntent(boolean export){Intent i=new Intent(export?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");if(export)i.putExtra(Intent.EXTRA_TITLE,"history-jobs-backup.json");try{startActivityForResult(i,export?201:202);}catch(Exception e){toast("파일 선택 앱을 열지 못했어요");}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;Uri uri=data.getData();
@@ -274,5 +283,5 @@ public class MainActivity extends Activity {
     private void open(String raw){String safe=Html.resolve(raw,raw);if(safe.trim().isEmpty()){toast("열 수 없는 주소예요");return;}try{if(kr.personal.historyjobs.core.GoyangBoard.supports(safe))startActivity(new Intent(this,InspectActivity.class).putExtra("url",safe).putExtra("original",true));else startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(safe)));}catch(Exception e){toast("주소를 열 앱이 없어요");}}
     private String date(long t){return Instant.ofEpochMilli(t).atZone(Classifier.KST).format(DateTimeFormatter.ofPattern("MM.dd HH:mm",Locale.KOREA));}
     private void toast(String msg){Toast.makeText(this,msg,Toast.LENGTH_LONG).show();}
-    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.17\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
+    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.18\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
 }

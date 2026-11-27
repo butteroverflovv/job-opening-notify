@@ -16,7 +16,7 @@ public final class SyncEngine {
     public static boolean busy(){return LOCK.isLocked();}
     public static boolean run(Context c,Progress progress){
         if(!LOCK.tryLock())return true;
-        Context app=c.getApplicationContext();Store store=Store.get(app);boolean ok=true;
+        Context app=c.getApplicationContext();Store store=Store.get(app);boolean ok=true,completed=false;long started=android.os.SystemClock.elapsedRealtime();
         try{
             Collector collector=new Collector(Net::get);
             ListingCacheStore cache=ListingCacheStore.get(app);
@@ -35,10 +35,13 @@ public final class SyncEngine {
                     store.sourceResult(source,summary,true,now);
                 }catch(Exception e){ok=false;store.sourceResult(source,"확인 실패 · "+Collector.shortError(e),false,now);}
             }
-            app.getSharedPreferences("settings",0).edit().putLong("lastRun",System.currentTimeMillis()).apply();
             postPending(app,store);progress.update(ok?"확인을 마쳤어요. 게시판별 상태도 확인해 주세요.":"일부 게시판에 연결하지 못했어요. 게시판 탭에서 확인해 주세요.");
+            completed=true;
             return ok;
-        }finally{LOCK.unlock();}
+        }finally{
+            long elapsed=Math.max(0,android.os.SystemClock.elapsedRealtime()-started);LOCK.unlock();
+            if(completed)app.getSharedPreferences("settings",0).edit().putLong("lastRunDuration",elapsed).putLong("lastRun",System.currentTimeMillis()).apply();
+        }
     }
     public static void postPending(Context c,Store store){
         if(!c.getSharedPreferences("settings",0).getBoolean("alerts",true))return;

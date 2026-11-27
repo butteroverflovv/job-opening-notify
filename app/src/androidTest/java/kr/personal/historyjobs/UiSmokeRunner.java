@@ -21,7 +21,7 @@ public final class UiSmokeRunner extends Instrumentation {
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     @Override public void onStart(){Bundle result=new Bundle();try{
         server=new PageServer();Context c=getTargetContext();c.getSharedPreferences("notified",0).edit().clear().apply();screenshots=new File(c.getExternalFilesDir(null),"ui-screenshots");screenshots.mkdirs();
-        c.getSharedPreferences("settings",0).edit().remove("noticeRegions").remove("noticeSources").remove("sourceRegions").remove("sourceDescending").putBoolean("permissionAsked",true).putBoolean("automatic",false).putBoolean("alerts",false).apply();
+        c.getSharedPreferences("settings",0).edit().remove("noticeRegions").remove("noticeSources").remove("sourceRegions").remove("sourceDescending").remove("noticeRecent").remove("lastRunDuration").putBoolean("permissionAsked",true).putBoolean("automatic",false).putBoolean("alerts",false).apply();
         Store store=Store.get(c);store.restore("{\"schema\":1,\"selectionVersion\":2,\"sources\":[],\"notices\":[]}");long now=System.currentTimeMillis();
         if(store.source("sen-regular")==null||store.source("goe-regular")==null)throw new AssertionError("Regular boards not added on migration");
         if(store.source("sejong-science")==null||store.source("anyang-fl")==null||!store.source("dongducheon-fl").keywords.equals(List.of("교사 AND 공고")))throw new AssertionError("School catalog migration or AND seed missing");
@@ -32,9 +32,10 @@ public final class UiSmokeRunner extends Instrumentation {
         for(Source s:store.sources())store.removeSource(s.id);
         for(Source s:defaults()){s.message=s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"목록 확인 완료 · 역사 공고 수집";s.lastSuccess=s.id.equals("tokyo")?0:now;store.putSource(s);}
         String cacheSummary=cacheStorageChecks(c,store,now);
+        String timingSummary=timingChecks(c,store);c.getSharedPreferences("settings",0).edit().putLong("lastRun",now).putLong("lastRunDuration",65_000).apply();
         Source src=store.source("sen");List<Notice> notices=new ArrayList<>();
         String[] titles={"가람중학교 역사 기간제교원 채용 공고","나래고등학교 2027학년도 역사과 기간제교원 채용 재공고 (2차)","다온중학교 역사 기간제교원 채용"};
-        for(int i=0;i<3;i++){Notice n=recentNotice();n.id="preview"+i;n.sourceId="sen";n.sourceName=src.name;n.school=i==0?"가람중학교":i==1?"나래고등학교":"다온중학교";n.region="서울";n.url=server.base()+"/post"+i;n.title=titles[i];n.deadline=now+(i==2?-1L:i+1L)*86400000L;n.deadlineLabel=java.time.Instant.ofEpochMilli(n.deadline).atZone(Classifier.KST).format(java.time.format.DateTimeFormatter.ofPattern("MM.dd HH:mm"));n.firstSeen=now;n.status=Status.MATCH;n.complete=true;n.fingerprint=n.contentHash();notices.add(n);}
+        for(int i=0;i<3;i++){Notice n=recentNotice();n.id="preview"+i;n.sourceId="sen";n.sourceName=src.name;n.school=i==0?"가람중학교":i==1?"나래고등학교":"다온중학교";n.region="서울";n.url=server.base()+"/post"+i;n.title=titles[i];n.deadline=now+(i==2?-1L:i+1L)*86400000L;n.deadlineLabel=java.time.Instant.ofEpochMilli(n.deadline).atZone(Classifier.KST).format(java.time.format.DateTimeFormatter.ofPattern("MM.dd HH:mm"));n.firstSeen=now-(3-i)*1000L;n.status=Status.MATCH;n.complete=true;n.fingerprint=n.contentHash();notices.add(n);}
         store.merge(src,notices);
         Notice dutyOnly=recentNotice();dutyOnly.id="duty-only";dutyOnly.sourceId=src.id;dutyOnly.title="선덕중학교 신규교사 채용 공고";dutyOnly.duty="과목(담당업무) · 역사(1명), 체육(1명)";dutyOnly.url=server.base()+"/duty-only";dutyOnly.firstSeen=now;store.merge(src,List.of(dutyOnly));
         if(store.notices().get("duty-only").status!=Status.MATCH)throw new AssertionError("Duty-only history missing");store.restore(store.exportData().toString());if(!store.notices().get("duty-only").duty.contains("역사")||store.notices().get("duty-only").status!=Status.MATCH)throw new AssertionError("Duty metadata backup failed");
@@ -52,6 +53,12 @@ public final class UiSmokeRunner extends Instrumentation {
         for(Source s:store.sources())store.sourceResult(s,s.id.equals("tokyo")?"확인 실패 · 연결 상태를 확인해 주세요":"확인 완료 · 목록 20건 / 조건 일치 0건",!s.id.equals("tokyo"),now);
         activity=(MainActivity)startActivitySync(new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));idle();
         oneLineHeading();expect("notice_duty-only",true);expect("page_intro",false);expect("notice_school-broad",true);expect("notice_central-excluded",false);expect("notice_old-post",false);expect("notice_old-school-year",false);expect("notice_unknown-date",false);expect("notice_school-custom",false);visible("nav_notices");visible("nav_sources");visible("nav_settings");expect("notice_preview0",true);expect("notice_preview2",false);capture("01-notices");
+        visible("run_duration");main(()->{View v=find("notice_sort");v.requestRectangleOnScreen(new android.graphics.Rect(0,0,v.getWidth(),v.getHeight()),false);});idle();visible("notice_sort");awaitText("run_duration","소요 시간 · 1분 5초");
+        if(noticeOrder().indexOf("notice_preview0")>=noticeOrder().indexOf("notice_preview1"))throw new AssertionError("Initial deadline order failed");
+        click("notice_sort");capture("18-notice-sort-choice");chooseNoticeOrder(1);
+        if(noticeOrder().indexOf("notice_preview1")>=noticeOrder().indexOf("notice_preview0")||!c.getSharedPreferences("settings",0).getBoolean("noticeRecent",false))throw new AssertionError("Recent discovery sort or persistence failed");capture("19-notices-recent");
+        click("region_filter");main(()->((AlertDialog)dialog("regionPicker")).getButton(AlertDialog.BUTTON_NEGATIVE).performClick());idle();if(!((TextView)find("notice_sort")).getText().toString().contains("최근 확인순"))throw new AssertionError("Filter reset notice sort");
+        click("notice_sort");chooseNoticeOrder(0);
         click("favorite_preview0");if(!store.notices().get("preview0").favorite)throw new AssertionError("Bookmark not saved");
         click("filter_favorite");expect("notice_preview0",true);expect("notice_preview1",false);capture("02-favorites");
         main(()->((EditText)find("search_field")).setText("없는학교"));idle();expect("notice_preview0",false);capture("03-search-empty");
@@ -98,9 +105,16 @@ public final class UiSmokeRunner extends Instrumentation {
         Instrumentation.ActivityMonitor originalMonitor=addMonitor(InspectActivity.class.getName(),new Instrumentation.ActivityResult(Activity.RESULT_OK,null),true);
         main(()->{try{var open=MainActivity.class.getDeclaredMethod("open",String.class);open.setAccessible(true);open.invoke(activity,GoyangBoard.article("https://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","6807"));}catch(Exception e){throw new AssertionError(e);}});idle();
         if(originalMonitor.getHits()!=1)throw new AssertionError("Goyang original must open in POST-capable page viewer");removeMonitor(originalMonitor);
-        result.putString("stream","OK (1 test)\n"+cacheSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
+        result.putString("stream","OK (1 test)\n"+cacheSummary+"\n"+timingSummary+"\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}finally{if(server!=null)server.close();}}
     private static Notice recentNotice(){Notice n=new Notice();n.published=java.time.LocalDate.now(Classifier.KST).toString();return n;}
+    private String timingChecks(Context c,Store store)throws Exception{
+        String before=store.exportData().toString();for(Source s:store.sources()){s.enabled=false;store.putSource(s);}
+        Source timed=Model.source("timing-check","시간 검사",server.base()+"/timed-list","GENERIC","서울","");store.putSource(timed);long start=SystemClock.elapsedRealtime();
+        boolean ok=SyncEngine.run(c,message->{});long total=SystemClock.elapsedRealtime()-start,recorded=c.getSharedPreferences("settings",0).getLong("lastRunDuration",-1);
+        if(!ok||recorded<1000||recorded>total+100||c.getSharedPreferences("settings",0).getLong("lastRun",0)==0||SyncEngine.busy())throw new AssertionError("Whole-run monotonic duration or completed timestamp failed");
+        store.restore(before);return "RUN_TIME_OK: "+recorded+" ms across real delayed list request; completed timestamp and lock release verified.";
+    }
     private String cacheStorageChecks(Context c,Store store,long now)throws Exception{
         ListingCacheStore cache=ListingCacheStore.get(c);Source source=store.source("sen");List<String> records=new ArrayList<>();for(int i=0;i<150;i++)records.add(Model.hash("cache fixture "+i));
         ListingCache.State state=new ListingCache.State(ListingCache.config(source,now),now,records);cache.put(store.sources(),source.id,state);
@@ -120,10 +134,12 @@ public final class UiSmokeRunner extends Instrumentation {
     private void main(Runnable r){AtomicReference<Throwable> error=new AtomicReference<>();runOnMainSync(()->{try{r.run();}catch(Throwable t){error.set(t);}});if(error.get()!=null)throw new AssertionError(error.get());}
     private void idle(){waitForIdleSync();SystemClock.sleep(250);}
     private Dialog dialog(String fieldName){try{var f=MainActivity.class.getDeclaredField(fieldName);f.setAccessible(true);return (Dialog)f.get(activity);}catch(Exception e){throw new AssertionError(e);}}
-    private View find(String tag){View v=activity.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;for(String field:new String[]{"articleDialog","regionPicker","sourceEditor","sourceDetails","sourceRegionPicker"}){Dialog d=dialog(field);if(d!=null){v=d.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;}}return null;}
+    private View find(String tag){View v=activity.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;for(String field:new String[]{"articleDialog","regionPicker","sourceEditor","sourceDetails","sourceRegionPicker","noticeSortPicker"}){Dialog d=dialog(field);if(d!=null){v=d.getWindow().getDecorView().findViewWithTag(tag);if(v!=null)return v;}}return null;}
     private void chooseRegions(Set<Integer> selected)throws Exception{click("region_filter");main(()->{String[] names={"경기","서울","기타 지역"};for(int i=0;i<names.length;i++)((CheckBox)find("filter_region_"+names[i])).setChecked(selected.contains(i));});if(selected.equals(Set.of(1)))capture("10-region-filter");click("region_apply");}
     private void chooseSourceRegions(Set<String> selected)throws Exception{click("source_region_filter");main(()->{for(String name:List.of("서울","경기","기타 지역"))((CheckBox)find("source_filter_"+name)).setChecked(selected.contains(name));});click("source_region_apply");}
     private void chooseSourceOrder(int which){main(()->{ListView list=((AlertDialog)dialog("sourceSortPicker")).getListView();list.performItemClick(list.getChildAt(which),which,which);});idle();}
+    private void chooseNoticeOrder(int which){main(()->{ListView list=((AlertDialog)dialog("noticeSortPicker")).getListView();list.performItemClick(list.getChildAt(which),which,which);});idle();}
+    private List<String> noticeOrder(){List<String> result=new ArrayList<>();main(()->{View parent=find("notice_preview0");if(parent==null)throw new AssertionError("Notice fixture missing");ViewGroup list=(ViewGroup)parent.getParent();for(int i=0;i<list.getChildCount();i++){Object tag=list.getChildAt(i).getTag();if(tag instanceof String&&((String)tag).startsWith("notice_"))result.add((String)tag);}});return result;}
     private List<String> sourceOrder(){List<String> result=new ArrayList<>();main(()->{ViewGroup list=(ViewGroup)find("source_list");for(int i=0;i<list.getChildCount();i++){Object tag=list.getChildAt(i).getTag();if(tag instanceof String&&((String)tag).startsWith("source_item_"))result.add((String)tag);}});return result;}
     private void chooseBoards(Set<String> selected)throws Exception{click("region_filter");main(()->{for(Source s:Store.get(getTargetContext()).sources())((CheckBox)find("filter_board_"+s.id)).setChecked(selected.contains(s.id));});capture("12-board-filter");click("region_apply");}
 
@@ -138,6 +154,7 @@ public final class UiSmokeRunner extends Instrumentation {
             BufferedReader in=new BufferedReader(new InputStreamReader(client.getInputStream(),StandardCharsets.UTF_8));String request=in.readLine();if(request==null)continue;String path=request.split(" ")[1];requests.add(path);String line;while((line=in.readLine())!=null&&!line.isEmpty()){}
             boolean fail=path.equals("/post1")&&retries.getAndIncrement()==0;
             String html="<article><p>테스트용 공고 본문입니다. 모집 분야와 접수 방법을 앱 안에서 확인할 수 있어요. 학교급이나 자격 조건으로 공고를 다시 걸러내지 않습니다.</p><a href='/do-not-fetch.pdf'>첨부파일.pdf</a><iframe src='/download?file=a.hwp'></iframe></article>";
+            if(path.equals("/timed-list")){SystemClock.sleep(1100);html="<a href='/view.do?nttSn=9001'>"+(java.time.LocalDate.now(Classifier.KST).getYear()+1)+"학년도 역사 채용<span>등록일: "+java.time.LocalDate.now(Classifier.KST)+"</span></a>";}
             byte[] bytes=html.getBytes(StandardCharsets.UTF_8);OutputStream out=client.getOutputStream();out.write(("HTTP/1.1 "+(fail?"503 Unavailable":"200 OK")+"\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "+bytes.length+"\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));out.write(bytes);out.flush();
         }catch(IOException e){if(!socket.isClosed())throw new RuntimeException(e);}},"body-fixture-server");t.setDaemon(true);t.start();}
         String base(){return "http://127.0.0.1:"+socket.getLocalPort();}void close(){try{socket.close();}catch(IOException ignored){}}

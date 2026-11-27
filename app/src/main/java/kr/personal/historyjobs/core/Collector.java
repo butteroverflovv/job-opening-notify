@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.*;
 import static kr.personal.historyjobs.core.Model.*;
 
-/** Title-only collection: no detail requests and no attachment downloads. */
+/** Title-based collection. GNU boards with abbreviated dates may read detail date metadata; no attachments. */
 public final class Collector {
     public interface Transport { Net.Response get(String url,int limit,String referer)throws Exception; }
     public record Result(List<Notice> notices,int listed,int checked,boolean partial,List<String> errors,ListingCache.State cache,boolean incremental,int pages) {}
@@ -18,6 +18,7 @@ public final class Collector {
         LocalDate today=java.time.Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate();
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
         Set<String> visited=new HashSet<>(),bodies=new HashSet<>(),lists=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
+        LinkedHashMap<String,Link> cacheListings=new LinkedHashMap<>();Map<String,String> dates=new HashMap<>();
         List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;
         // Follow consecutive pages to the date frontier or the board's end. A fixed
         // page/time quota can hide valid posts before reaching the old section.
@@ -33,8 +34,10 @@ public final class Collector {
                 // Some boards ignore page parameters but change counters/tokens in
                 // their HTML. Detect a repeated logical list to prevent such loops.
                 if(!list.items().isEmpty()&&!lists.add(Model.hash(list.items().stream().map(l->l.url()+"\n"+l.title()+"\n"+l.published()+"\n"+l.duty()).collect(java.util.stream.Collectors.joining("\n\n")))))break;
-                for(Link l:list.items())listings.putIfAbsent(l.url(),l);
-                if(Selection.oldPage(list.items(),today)){queue.clear();break;}
+                for(Link l:list.items())cacheListings.putIfAbsent(l.url(),l);
+                List<Link> dated=GnuDates.resolve(source,list.items(),net,dates,today);
+                for(Link l:dated)listings.putIfAbsent(l.url(),l);
+                if(Selection.oldPage(dated,today)){queue.clear();break;}
                 List<Link> regular=list.items().stream().filter(l->!l.pinned()).collect(java.util.stream.Collectors.toList());
                 unchanged=incremental&&!regular.isEmpty()&&regular.stream().allMatch(l->remembered.contains(ListingCache.fingerprint(l)))?unchanged+1:0;
                 if(unchanged>=ListingCache.UNCHANGED_PAGES){queue.clear();break;}
@@ -59,7 +62,7 @@ public final class Collector {
             if(n.status==Status.MATCH||old!=null)out.add(n);
         }
         if(undated>0){partial=true;errors.add("게시일을 확인하지 못한 "+undated+"건은 기간을 판단할 수 없어 제외했어요.");}
-        ListingCache.State cache=!partial&&pages>0?ListingCache.updated(source,incremental?previous:null,listings.values(),now,!incremental):null;
+        ListingCache.State cache=!partial&&pages>0?ListingCache.updated(source,incremental?previous:null,cacheListings.values(),now,!incremental):null;
         return new Result(out,listings.size(),matches,partial,errors.stream().distinct().limit(15).collect(java.util.stream.Collectors.toList()),cache,incremental,pages);
     }
     public static String id(Source s,String url){return Model.hash(s.id+"|"+url);}

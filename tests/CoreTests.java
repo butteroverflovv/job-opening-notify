@@ -101,6 +101,7 @@ public class CoreTests {
         GoyangTests.run();
         InternationalTests.run();
         ListingCacheTests.run();
+        NoticeAndDateTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{

@@ -44,13 +44,13 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleRelease :app:lintRelease
-          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.17-unsigned.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk history-jobs-0.1.18-unsigned.apk
           cp "${ANDROID_HOME}/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: history-jobs-0.1.17-unsigned
+          name: history-jobs-0.1.18-unsigned
           path: |
-            history-jobs-0.1.17-unsigned.apk
+            history-jobs-0.1.18-unsigned.apk
             apksigner.jar
           retention-days: 30
       - name: Save build and source diagnostics
