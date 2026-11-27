@@ -41,9 +41,10 @@ public final class ArticleReader {
         Html.Node root=Html.parse(html),chosen=null;int best=0;
         String whole=root.text();if(whole.contains("사용제약에 따른 안내")||whole.matches("(?is)^\\s*(?:access denied|forbidden).*"))throw new IOException("사이트에서 접근을 제한했어요. 원문 연결을 확인해 주세요");
         for(Html.Node n:root.all()){
-            if(suppressed(n)||!Set.of("article","section","div","td","main").contains(n.tag))continue;
+            if(suppressed(n)||!Set.of("article","section","div","td","main","li").contains(n.tag))continue;
             String raw=(n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT),token=raw.replaceAll("[-_\\s]","");int score=0;
-            if(GoyangBoard.bodyCell(url,n))score=940;
+            if(InternationalBoards.bodyCell(url,n))score=950;
+            else if(GoyangBoard.bodyCell(url,n))score=940;
             else if(SchoolSites.aspBodyCell(url,n))score=920;
             else if(token.equals("bovcon"))score=900;
             else if(token.equals("tmpcontentsarea"))score=880;
@@ -73,6 +74,7 @@ public final class ArticleReader {
     private static final Set<String> SKIP=Set.of("script","style","noscript","nav","header","footer","aside","button","input","select","textarea","object","embed","svg","canvas");
     private static final Pattern SKIP_CONTAINER=Pattern.compile("(?:^|\\s)(?:attachments?|attach(?:file|list|wrap|area|box)[\\w-]*|attach[_-][\\w-]*|file[_-]?(?:list|area|down|wrap|box|info|upload)[\\w-]*|download[\\w-]*|board[_-]?file[\\w-]*|bbs[_-]?file[\\w-]*|atchfile[\\w-]*|postfiles|job-detail-area__row|pagination|paging|related[\\w-]*|comment[\\w-]*|reply[\\w-]*|previouspost|nextpost)(?:\\s|$)");
     private static boolean skip(Html.Node n){
+        if(n.attr("id").equals("hwpEditorBoardContent")||Arrays.asList(n.attr("class").split("\\s+")).contains("hwp_editor_board_content"))return true;
         if(SKIP.contains(n.tag)||n.attrs.containsKey("hidden")||n.attr("aria-hidden").equals("true")||n.attr("style").matches("(?is).*(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden).*"))return true;
         String token=(n.attr("class")+" "+n.attr("id")).toLowerCase(Locale.ROOT);
         if(SKIP_CONTAINER.matcher(token).find())return true;

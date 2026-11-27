@@ -44,7 +44,7 @@ public final class Model {
         out.add(source("sen","서울교육일자리포털","https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd002&jobCategory=jd002001&jobDuty=all0&q_tabId=jobTab&q_srchJob=jd002,%EA%B3%84%EC%95%BD%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001,%EA%B8%B0%EA%B0%84%EC%A0%9C%EA%B5%90%EC%9B%90,jd002001-all,%EC%A0%84%EC%B2%B4","SEOUL","서울",""));
         out.add(source("goe","경기도교육청","https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancList.do?mi=10502","GYEONGGI","경기",""));
         out.add(source("tokyo","동경한국학교","http://www.tokos.ed.jp/front_notice.brd?shell=/index.shell:225","TOKYO","기타 지역","동경한국학교"));
-        out.addAll(regularSources());out.addAll(SchoolCatalog.defaults());return out;
+        out.addAll(regularSources());out.addAll(SchoolCatalog.defaults());out.addAll(InternationalCatalog.defaults());return out;
     }
     public static List<Source> regularSources(){return List.of(
         source("sen-regular","서울교육일자리포털 · 정규교원","https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd001&jobCategory=jd001001&jobDuty=jd001001002&q_srchType=rcrtTtl&q_srchText=&q_currPage=1&q_rowPerPage=15&q_srchArea=&q_srchSchl=&q_tabId=&q_sortBy=regDt&q_mySrchArea=&q_srchJob=jd001%2C%EC%A0%95%EA%B7%9C%EA%B5%90%EC%9B%90%2Cjd001001%2C%EB%B3%B4%ED%86%B5%EA%B5%90%EA%B3%BC%2Cjd001001002%2C%EB%8F%84%EB%8D%95%EC%82%AC%ED%9A%8C%EA%B3%BC&q_recClosed=closed&q_today=&q_jobCategory=","SEOUL","서울",""),

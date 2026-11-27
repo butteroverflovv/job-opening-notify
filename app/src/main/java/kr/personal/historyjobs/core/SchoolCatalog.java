@@ -24,8 +24,8 @@ public final class SchoolCatalog {
         entry("suwon-fl","수원외국어고등학교","https://www.sawl.hs.kr/sys/bbs/board.php?bo_table=030601","경기","교사 AND 공고"),
         entry("anyang-fl","안양외국어고등학교","https://anyangfl-h.goeay.kr/anyangfl-h/na/ntt/selectNttList.do?mi=9329&bbsId=4646","경기","교사 AND 채용"));}
     public static String key(String url){
-        try{URI u=URI.create(url);String host=Objects.toString(u.getHost(),"").toLowerCase(Locale.ROOT).replaceFirst("^www\\.","");String path=Objects.toString(u.getPath(),"/").replaceAll("/+$","");if(host.equals("gcfl.or.kr")&&(path.isEmpty()||path.equals("/main/main.asp")))path="/notification/notice.asp";Map<String,String> values=SchoolBoards.query(url);TreeMap<String,String> fields=new TreeMap<>();
-            for(String k:List.of("bbsId","mi","bo_table","act","code","mcode","comm","categoryid","menuid","groupid"))if(values.containsKey(k))fields.put(k,values.get(k));
+        try{URI u=URI.create(url);String host=Objects.toString(u.getHost(),"").toLowerCase(Locale.ROOT).replaceFirst("^www\\.","");String path=Objects.toString(u.getPath(),"/").replaceAll("/+$","");if(InternationalBoards.goyang(url)){host="ggg.hs.kr";path="";}if(host.equals("gcfl.or.kr")&&(path.isEmpty()||path.equals("/main/main.asp")))path="/notification/notice.asp";Map<String,String> values=SchoolBoards.query(url);TreeMap<String,String> fields=new TreeMap<>();
+            for(String k:List.of("bbsId","mi","bo_table","act","code","mcode","comm","categoryid","menuid","groupid","menu_no"))if(values.containsKey(k))fields.put(k,values.get(k));
             return host+path+fields;
         }catch(Exception e){return url;}
     }
