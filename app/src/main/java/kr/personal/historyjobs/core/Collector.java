@@ -34,7 +34,7 @@ public final class Collector {
         List<Notice> out=new ArrayList<>();int matches=0,undated=0;
         for(Link link:listings.values()){
             String key=id(source,link.url());Notice old=known.get(key);
-            if(!Classifier.titleMatches(source,link.title())&&old==null)continue;
+            if((!Classifier.titleMatches(source,link.title())||!Selection.academicYearMatches(link.title(),source.url,today))&&old==null)continue;
             Notice n=new Notice();n.id=key;n.sourceId=source.id;n.sourceName=source.name;n.sourceUrl=source.url;n.region=source.region;
             n.keywords=new ArrayList<>(source.keywords);n.published=Selection.date(link.published());if(n.published.isEmpty()&&old!=null)n.published=old.published;
             n.url=link.url();n.title=link.title();n.school=source.schoolHint;n.firstSeen=now;n.lastSeen=now;

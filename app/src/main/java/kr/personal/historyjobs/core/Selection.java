@@ -16,9 +16,9 @@ public final class Selection {
     }
     public static String compact(String text){return Normalizer.normalize(Objects.toString(text,""),Normalizer.Form.NFC).replaceAll("[\\s\\p{Z}\\u200B]+","").toLowerCase(Locale.ROOT);}
     public static List<String> keywords(String input){
-        LinkedHashMap<String,String> unique=new LinkedHashMap<>();for(String part:input.split("[,，\\n\\r]+")){String t=part.trim();String key=compact(t);if(!key.isEmpty())unique.putIfAbsent(key,t);}return new ArrayList<>(unique.values());
+        LinkedHashMap<String,String> unique=new LinkedHashMap<>();for(String part:Objects.toString(input,"").split("(?i)[,，\\n\\r]+|(?<!\\S)or(?!\\S)")){String t=part.trim();String key=compact(t);if(!key.isEmpty())unique.putIfAbsent(key,t);}return new ArrayList<>(unique.values());
     }
-    public static boolean titleMatches(String title,List<String> words){if(title==null||words==null)return false;String t=compact(title);for(String k:words){String w=compact(k);if(!w.isEmpty()&&t.contains(w))return true;}return false;}
+    public static boolean titleMatches(String title,List<String> words){if(title==null||words==null)return false;String t=compact(title);for(String k:keywords(String.join("\n",words))){String w=compact(k);if(!w.isEmpty()&&t.contains(w))return true;}return false;}
     public static boolean validKeywords(List<String> words){return words!=null&&!words.isEmpty()&&words.size()<=30&&words.stream().allMatch(w->!compact(w).isEmpty()&&w.length()<=100);}
     public static String region(String raw){if("서울".equals(raw))return "서울";if("경기".equals(raw))return "경기";return "기타 지역";}
     public static boolean regionMatches(String notice,Set<String> selected){return selected.contains(region(notice));}
@@ -27,7 +27,16 @@ public final class Selection {
     public static LocalDate published(String raw){String d=date(raw);return d.isEmpty()?null:LocalDate.parse(d);}
     public static LocalDate start(LocalDate today){return LocalDate.of(today.getYear()-1,1,1);}
     public static boolean inWindow(String raw,LocalDate today){LocalDate d=published(raw);return d!=null&&!d.isBefore(start(today))&&d.getYear()<=today.getYear();}
-    public static boolean eligible(Notice n,LocalDate today){return Classifier.matches(n)&&inWindow(n.published,today);}
+    private static final Pattern ACADEMIC_YEAR=Pattern.compile("(?<![0-9])([0-9]{4})학년도");
+    /** School titles must name this or next academic year; central recruitment portals are exempt. */
+    public static boolean academicYearMatches(String title,String sourceUrl,LocalDate today){
+        if(Classifier.educationBoard(sourceUrl))return true;
+        Matcher m=ACADEMIC_YEAR.matcher(compact(title));
+        while(m.find()){int year=Integer.parseInt(m.group(1));if(year==today.getYear()||year==today.getYear()+1)return true;}
+        return false;
+    }
+    public static boolean academicYearMatches(Notice n,LocalDate today){return academicYearMatches(n.title,n.sourceUrl.isEmpty()?n.url:n.sourceUrl,today);}
+    public static boolean eligible(Notice n,LocalDate today){return Classifier.matches(n)&&academicYearMatches(n,today)&&inWindow(n.published,today);}
     /** Only metadata labels, date fields, and table columns; never a title's school year or employment dates. */
     public static String publishedIn(Html.Node link){
         Html.Node scope=link;

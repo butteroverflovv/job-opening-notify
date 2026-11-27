@@ -29,7 +29,7 @@ public final class Classifier {
     public static void reclassify(Notice n,LocalDate today){
         String name=school(n.title);if(!name.isEmpty())n.school=name;
         n.status=Selection.eligible(n,today)?Status.MATCH:Status.EXCLUDED;
-        n.reason=!Selection.inWindow(n.published,today)?(n.published.isEmpty()?"게시일을 확인하지 못해 제외":"작년·올해 게시물이 아니어서 제외"):matches(n)?"게시판의 수집 키워드와 일치":"게시판의 수집 키워드와 일치하지 않아 제외";
+        n.reason=!Selection.inWindow(n.published,today)?(n.published.isEmpty()?"게시일을 확인하지 못해 제외":"작년·올해 게시물이 아니어서 제외"):!Selection.academicYearMatches(n,today)?"제목에 올해·다음해 학년도가 없어 제외":matches(n)?"게시판의 수집 키워드와 일치":"게시판의 수집 키워드와 일치하지 않아 제외";
         if(n.bodyFetchedAt<=0)n.body="";
         n.attachments.clear();n.complete=true;n.fingerprint=n.contentHash();
     }
