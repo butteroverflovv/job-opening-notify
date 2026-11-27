@@ -13,6 +13,7 @@ public final class BoardParser {
     private static final Pattern ID=Pattern.compile("(?:q_rcrtSn|pbancSn|nttSn|articleNo|boardSeq|seq|num|no)\\s*[=:]\\s*['\"]?(\\d+)",Pattern.CASE_INSENSITIVE);
     private static final Pattern QUOTED=Pattern.compile("['\"](\\d{2,})['\"]");
     public static Listing listing(Source source,String page,String html) {
+        if(kind(source).equals("SCHOOL_GYFL"))return GoyangBoard.listing(source,html);
         Html.Node root=Html.parse(html);Map<String,Link> links=new LinkedHashMap<>();LinkedHashSet<String> pages=new LinkedHashSet<>();
         String security=SchoolBoards.securityMessage(root);if(!security.isEmpty())return new Listing(List.of(),List.of(),false,security);
         if(kind(source).equals("SCHOOL_SEN")){String request=SchoolBoards.seoulRequest(page,html,root,false);if(!request.isEmpty())return new Listing(List.of(),List.of(request),false,"");}
@@ -58,6 +59,7 @@ public final class BoardParser {
         return new Listing(new ArrayList<>(links.values()),new ArrayList<>(pages),empty,warn);
     }
     public static String kind(Source s){
+        if((s.kind.equals("AUTO")||s.kind.equals("GENERIC"))&&GoyangBoard.supports(s.url))return "SCHOOL_GYFL";
         String legacy=SchoolSites.kind(s.url);if((s.kind.equals("AUTO")||s.kind.equals("GENERIC"))&&!legacy.isEmpty())return legacy;
         if((s.kind.equals("AUTO")||s.kind.equals("GENERIC")||s.kind.equals("GYEONGGI"))&&SchoolBoards.ntt(s.url))return "SCHOOL_NTT";
         if((s.kind.equals("AUTO")||s.kind.equals("GENERIC")||s.kind.equals("SEOUL"))&&SchoolBoards.senMenu(s.url))return "SCHOOL_SEN";

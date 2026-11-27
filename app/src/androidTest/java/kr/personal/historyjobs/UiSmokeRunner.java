@@ -83,6 +83,9 @@ public final class UiSmokeRunner extends Instrumentation {
         SyncEngine.testNotification(c);idle();for(android.service.notification.StatusBarNotification posted:nm.getActiveNotifications())if(posted.getId()==101&&posted.getNotification().getSmallIcon().getResId()!=R.drawable.ic_notification_school)throw new AssertionError("Test notification icon incorrect");
         getUiAutomation().executeShellCommand("cmd statusbar expand-notifications").close();SystemClock.sleep(600);capture("09-notification");getUiAutomation().executeShellCommand("cmd statusbar collapse").close();nm.cancelAll();
         c.getSharedPreferences("settings",0).edit().putBoolean("alerts",false).apply();
+        Instrumentation.ActivityMonitor originalMonitor=addMonitor(InspectActivity.class.getName(),new Instrumentation.ActivityResult(Activity.RESULT_OK,null),true);
+        main(()->{try{var open=MainActivity.class.getDeclaredMethod("open",String.class);open.setAccessible(true);open.invoke(activity,GoyangBoard.article("https://www.gyfl.hs.kr/main/main.php?categoryid=12&menuid=03&groupid=00","6807"));}catch(Exception e){throw new AssertionError(e);}});idle();
+        if(originalMonitor.getHits()!=1)throw new AssertionError("Goyang original must open in POST-capable page viewer");removeMonitor(originalMonitor);
         result.putString("stream","OK (1 test)\nUI date exclusion, keyword/region editing and backup, stale config guard, region filter persistence, body and notification checks passed.\n");finish(Activity.RESULT_OK,result);
     }catch(Throwable t){result.putString("stream","FAIL: "+t+"\n"+android.util.Log.getStackTraceString(t));finish(Activity.RESULT_CANCELED,result);}finally{if(server!=null)server.close();}}
     private static Notice recentNotice(){Notice n=new Notice();n.published=java.time.LocalDate.now(Classifier.KST).toString();return n;}

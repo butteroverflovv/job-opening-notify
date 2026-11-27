@@ -33,13 +33,15 @@ public final class Net {
             if(htmlOnly&&ArticleReader.isFileUrl(url))throw new IOException("첨부파일은 가져오지 않아요");
             URI u;try{u=URI.create(url);}catch(Exception e){throw new IOException("주소 형식 오류");}
             if(!Set.of("https","http").contains(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null)throw new IOException("지원하지 않는 주소");
-            HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
+            boolean form=GoyangBoard.supports(url);byte[] post=null;try{if(form)post=GoyangBoard.body(url);}catch(IllegalArgumentException e){throw new IOException(e.getMessage());}
+            HttpURLConnection c=(HttpURLConnection)new URL(form?GoyangBoard.endpoint(url):url).openConnection();
             c.setConnectTimeout(15_000);c.setReadTimeout(20_000);c.setInstanceFollowRedirects(false);
             c.setRequestProperty("User-Agent",u.getHost().matches("(?i)(?:www\\.)?gcfl\\.or\\.kr")?"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 HistoryJobs/0.1":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36 HistoryJobs/0.1");
             c.setRequestProperty("Accept",htmlOnly?"text/html,application/xhtml+xml,text/plain;q=0.9":"text/html,application/xhtml+xml,application/pdf,*/*;q=0.8");
             if(referer!=null&&!referer.trim().isEmpty())c.setRequestProperty("Referer",referer);
             synchronized(COOKIES){for(var header:COOKIES.get(u,Collections.emptyMap()).entrySet())if(!header.getValue().isEmpty())c.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));}
             try{
+                if(post!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8");c.setRequestProperty("Origin",u.getScheme()+"://"+u.getRawAuthority());c.setFixedLengthStreamingMode(post.length);try(OutputStream out=c.getOutputStream()){out.write(post);}}
                 int status=c.getResponseCode();
                 synchronized(COOKIES){COOKIES.put(u,c.getHeaderFields());}
                 if(status>=300&&status<400){String next=Html.resolve(url,c.getHeaderField("Location")==null?"":c.getHeaderField("Location"));if(next.trim().isEmpty()||next.equals(url))throw new IOException("리다이렉트 오류");url=next;continue;}

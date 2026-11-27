@@ -98,6 +98,7 @@ public class CoreTests {
         PaginationTests.run();
         PortalTests.run();
         CatalogTests.run();
+        GoyangTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{
