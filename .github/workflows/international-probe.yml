@@ -1,0 +1,17 @@
+name: Diagnose international schools
+on:
+  push:
+    branches: [diagnose/international-schools]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/international_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: international-diagnostics
+          path: international-diagnostics/
