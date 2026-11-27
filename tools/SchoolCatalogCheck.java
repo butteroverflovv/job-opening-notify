@@ -8,7 +8,7 @@ import java.util.concurrent.*;
 public final class SchoolCatalogCheck {
     public static void main(String[] args)throws Exception{
         Path out=Path.of("catalog-live");Files.createDirectories(out);ExecutorService pool=Executors.newFixedThreadPool(4);List<Future<String>> results=new ArrayList<>();
-        for(Source source:SchoolCatalog.defaults())if(args.length==0||Arrays.asList(args).contains(source.id))results.add(pool.submit(()->{
+        for(Source source:Arrays.asList(args).contains("--international")?InternationalCatalog.defaults():SchoolCatalog.defaults())if(args.length==0||Arrays.asList(args).contains("--international")||Arrays.asList(args).contains(source.id))results.add(pool.submit(()->{
             String summary=source.id+" kind="+BoardParser.kind(source)+" keywords="+source.keywords;
             try{
                 var response=Net.get(source.url,4_000_000,source.url);Files.writeString(out.resolve(source.id+"-shell.html"),response.text());

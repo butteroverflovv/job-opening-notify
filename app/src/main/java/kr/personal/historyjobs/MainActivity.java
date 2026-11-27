@@ -26,8 +26,9 @@ import static kr.personal.historyjobs.core.Model.*;
 public class MainActivity extends Activity {
     private static final int BG=Ui.WHITE,INK=Ui.INK,ACCENT=Ui.BROWN,MUTED=Ui.MUTED,LINE=Ui.LINE,AMBER=Ui.NEGATIVE;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
-    private final ExecutorService articleExecutor=Executors.newFixedThreadPool(2);private Dialog articleDialog;private AlertDialog regionPicker,sourceEditor;
-    private Store store;private LinearLayout root,screen,noticeList;private TextView progress;private LinearLayout bottomNavigation;
+    private final ExecutorService articleExecutor=Executors.newFixedThreadPool(2);private Dialog articleDialog;private AlertDialog regionPicker,sourceEditor,sourceDetails,sourceRegionPicker;
+    private Store store;private LinearLayout root,screen,noticeList,sourceList;private TextView progress;private LinearLayout bottomNavigation;
+    private String sourceQuery="";private Set<String> sourceRegions=new LinkedHashSet<>();
     private Set<String> regionFilter=new LinkedHashSet<>();
     private Set<String> boardFilter=null; // null includes all current and future boards
     private static final String[] REGIONS={"경기","서울","기타 지역"};
@@ -35,17 +36,17 @@ public class MainActivity extends Activity {
     private android.content.SharedPreferences prefs;
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener settingsListener=(p,key)->{if("lastRun".equals(key)&&root!=null&&!isDestroyed())render();};
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);store=Store.get(this);prefs=getSharedPreferences("settings",0);regionFilter=new LinkedHashSet<>(prefs.getStringSet("noticeRegions",new LinkedHashSet<>(Arrays.asList(REGIONS))));regionFilter.retainAll(Arrays.asList(REGIONS));if(prefs.contains("noticeSources"))boardFilter=new LinkedHashSet<>(prefs.getStringSet("noticeSources",Set.of()));
-        if(state!=null){tab=state.getInt("tab");filter=state.getInt("filter");query=state.getString("query","");closed=state.getBoolean("closed");}
+        super.onCreate(state);store=Store.get(this);prefs=getSharedPreferences("settings",0);regionFilter=new LinkedHashSet<>(prefs.getStringSet("noticeRegions",new LinkedHashSet<>(Arrays.asList(REGIONS))));regionFilter.retainAll(Arrays.asList(REGIONS));sourceRegions=new LinkedHashSet<>(prefs.getStringSet("sourceRegions",new LinkedHashSet<>(Arrays.asList(REGIONS))));sourceRegions.retainAll(Arrays.asList(REGIONS));if(prefs.contains("noticeSources"))boardFilter=new LinkedHashSet<>(prefs.getStringSet("noticeSources",Set.of()));
+        if(state!=null){tab=state.getInt("tab");filter=state.getInt("filter");query=state.getString("query","");closed=state.getBoolean("closed");sourceQuery=state.getString("sourceQuery","");}
         if(filter==1)filter=0;CheckWorker.schedule(this);render();
         if(Build.VERSION.SDK_INT>=33&&!prefs.getBoolean("permissionAsked",false)){
             new AlertDialog.Builder(this).setTitle("새 채용공고를 알려드릴게요").setMessage("공고 목록은 권한 없이도 볼 수 있어요. 새 공고 알림을 받으려면 다음 화면에서 알림을 허용해 주세요.").setPositiveButton("알림 설정",(d,w)->requestAlerts()).setNegativeButton("나중에",(d,w)->prefs.edit().putBoolean("permissionAsked",true).apply()).show();
         }
     }
-    @Override protected void onSaveInstanceState(Bundle b){super.onSaveInstanceState(b);b.putInt("tab",tab);b.putInt("filter",filter);b.putString("query",query);b.putBoolean("closed",closed);}
+    @Override protected void onSaveInstanceState(Bundle b){super.onSaveInstanceState(b);b.putInt("tab",tab);b.putInt("filter",filter);b.putString("query",query);b.putBoolean("closed",closed);b.putString("sourceQuery",sourceQuery);}
     @Override protected void onResume(){super.onResume();if(root!=null){prefs.registerOnSharedPreferenceChangeListener(settingsListener);SyncEngine.postPending(this,store);render();}}
     @Override protected void onPause(){if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(settingsListener);super.onPause();}
-    @Override protected void onDestroy(){if(regionPicker!=null)regionPicker.dismiss();if(sourceEditor!=null)sourceEditor.dismiss();if(articleDialog!=null)articleDialog.dismiss();articleExecutor.shutdownNow();executor.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){if(sourceDetails!=null)sourceDetails.dismiss();if(sourceRegionPicker!=null)sourceRegionPicker.dismiss();if(regionPicker!=null)regionPicker.dismiss();if(sourceEditor!=null)sourceEditor.dismiss();if(articleDialog!=null)articleDialog.dismiss();articleExecutor.shutdownNow();executor.shutdown();super.onDestroy();}
     private int dp(float n){return Ui.dp(this,n);}
     private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
@@ -62,7 +63,7 @@ public class MainActivity extends Activity {
     private void heading(String title,String subtitle){TextView heading=bold(title,24,INK);heading.setTag("page_heading");screen.addView(heading);if(!subtitle.isEmpty()){space(screen,8);TextView intro=text(subtitle,14,Ui.SECONDARY);intro.setTag("page_intro");screen.addView(intro);}space(screen,24);}
     private void sectionTitle(LinearLayout into,String title,String icon){LinearLayout r=row();r.addView(Ui.icon(this,icon,ACCENT),new LinearLayout.LayoutParams(dp(21),dp(21)));TextView t=bold(title,17,INK);t.setPadding(dp(9),0,0,0);r.addView(t,new LinearLayout.LayoutParams(0,-2,1));into.addView(r);space(into,16);}
     private void render(){
-        progress=null;noticeList=null;root=col();root.setBackgroundColor(BG);
+        progress=null;noticeList=null;sourceList=null;root=col();root.setBackgroundColor(BG);
         if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);root.setOnApplyWindowInsetsListener((v,i)->{android.graphics.Insets x=i.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());android.graphics.Insets keyboard=i.getInsets(WindowInsets.Type.ime());v.setPadding(x.left,x.top,x.right,Math.max(x.bottom,keyboard.bottom));if(bottomNavigation!=null)bottomNavigation.setVisibility(keyboard.bottom>x.bottom?View.GONE:View.VISIBLE);return WindowInsets.CONSUMED;});}
         setContentView(root);
         LinearLayout header=row();header.setPadding(dp(20),dp(16),dp(20),dp(16));header.addView(bold("교원 채용공고 알리미",19,INK),new LinearLayout.LayoutParams(0,-2,1));root.addView(header);
@@ -174,17 +175,42 @@ public class MainActivity extends Activity {
         dialog.setOnDismissListener(d->{if(loading[0]!=null)loading[0].cancel(true);if(articleDialog==dialog)articleDialog=null;if(tab==0)drawNotices();});dialog.show();load.run();
     }
     private void sourcesScreen(){
-        heading("게시판 관리",store.sources().size()+"개 게시판을 한곳에서 관리해요.");
-        Button add=button("＋ 게시판 추가",true,()->editSource(null));add.setTag("add_source");screen.addView(add);space(screen,22);
-        for(Source s:store.sources()){
-            LinearLayout c=card(screen);LinearLayout head=row();LinearLayout title=col();title.addView(bold(s.name,17,INK));space(title,7);title.addView(text(s.region+" · "+(s.schoolHint.trim().isEmpty()?"채용 게시판":s.schoolHint),12,MUTED));space(title,7);TextView keywords=text("키워드 · "+String.join(" · ",s.keywords),11,Ui.SECONDARY);keywords.setMaxLines(2);keywords.setEllipsize(android.text.TextUtils.TruncateAt.END);title.addView(keywords);head.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-            Switch on=new Switch(this);on.setTag("source_enabled_"+s.id);on.setContentDescription(s.name+" 자동 확인");on.setMinimumHeight(dp(48));on.setPadding(dp(10),0,0,0);Ui.tint(on);on.setChecked(s.enabled);head.addView(on);c.addView(head);on.setOnCheckedChangeListener((b,v)->{s.enabled=v;store.putSource(s);});space(c,18);
-            boolean failed=s.message.startsWith("확인 실패")||s.message.startsWith("일부");LinearLayout state=col();state.setPadding(dp(12),dp(12),dp(12),dp(12));state.setBackground(shape(Ui.FILL,0));state.addView(text(s.message,12,failed?AMBER:Ui.SECONDARY));space(state,6);state.addView(text("마지막 성공 · "+(s.lastSuccess==0?"아직 없음":date(s.lastSuccess)),11,MUTED));c.addView(state);space(c,12);
-            LinearLayout actions=row();String[] labels={"원문 보기","수정","삭제"};Runnable[] callbacks={()->open(s.url),()->editSource(s),()->new AlertDialog.Builder(this).setTitle("게시판을 삭제할까요?").setMessage("이 게시판의 자동 확인을 중지해요. 저장한 관심 공고는 남아요.").setPositiveButton("삭제",(d,w)->{store.removeSource(s.id);render();}).setNegativeButton("취소",null).show()};
-            for(int i=0;i<3;i++){Button b=button(labels[i],false,callbacks[i]);if(i==1)b.setTag("edit_source_"+s.id);b.setTextColor(i==2?MUTED:Ui.SECONDARY);b.setBackground(Ui.touch(this,BG,0,8));b.setPadding(dp(4),dp(10),dp(4),dp(10));actions.addView(b,new LinearLayout.LayoutParams(0,-2,1));}c.addView(actions);Ui.divider(this,c);
-            actionRow(c,"게시판 연결 진단","", "info",()->startActivity(new Intent(this,InspectActivity.class).putExtra("url",s.url)));
+        heading("게시판 관리","");Button add=button("＋ 게시판 추가",true,()->editSource(null));add.setTag("add_source");screen.addView(add);space(screen,16);
+        LinearLayout search=row();search.setPadding(dp(14),0,dp(4),0);search.setBackground(shape(Ui.FILL,0));search.addView(Ui.icon(this,"search",MUTED),new LinearLayout.LayoutParams(dp(20),dp(20)));
+        EditText field=new EditText(this);field.setTag("source_search");field.setSingleLine(true);field.setTextSize(14);field.setTextColor(INK);field.setHintTextColor(MUTED);field.setHint("게시판·키워드 검색");field.setBackgroundColor(Color.TRANSPARENT);field.setPadding(dp(10),dp(15),0,dp(15));field.setText(sourceQuery);field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);search.addView(field,new LinearLayout.LayoutParams(0,-2,1));
+        ImageButton clear=Ui.iconButton(this,"close","게시판 검색어 지우기",MUTED,()->field.setText(""));clear.setTag("source_search_clear");clear.setVisibility(sourceQuery.isEmpty()?View.INVISIBLE:View.VISIBLE);search.addView(clear);screen.addView(search);space(screen,8);
+        field.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int before,int count){sourceQuery=s.toString();clear.setVisibility(sourceQuery.isEmpty()?View.INVISIBLE:View.VISIBLE);drawSources();}public void afterTextChanged(Editable e){}});
+        field.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(field.getWindowToken(),0);field.clearFocus();return true;}return false;});
+        sourceList=col();sourceList.setTag("source_list");screen.addView(sourceList);drawSources();
+    }
+    private void drawSources(){
+        if(sourceList==null)return;sourceList.removeAllViews();List<Source> found=SourceList.select(store.sources(),sourceQuery,sourceRegions);
+        LinearLayout counts=row();counts.addView(bold("게시판 "+found.size()+"개",14,INK),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout filterAction=row();filterAction.setTag("source_region_filter");filterAction.setMinimumHeight(dp(48));filterAction.setMinimumWidth(dp(64));filterAction.setGravity(Gravity.CENTER);filterAction.setBackground(Ui.touch(this,BG,0,8));filterAction.setFocusable(true);filterAction.setSelected(sourceRegions.size()!=3);filterAction.setContentDescription("게시판 지역 필터 · "+(sourceRegions.size()==3?"전체 지역":sourceRegions.isEmpty()?"선택한 지역 없음":String.join(", ",sourceRegions)));
+        filterAction.addView(Ui.icon(this,"filter",MUTED),new LinearLayout.LayoutParams(dp(17),dp(17)));TextView filterLabel=text("필터",12,MUTED);filterLabel.setPadding(dp(6),0,0,0);filterAction.addView(filterLabel);filterAction.setOnClickListener(v->sourceRegionDialog());counts.addView(filterAction);sourceList.addView(counts);space(sourceList,8);
+        for(Source source:found){
+            LinearLayout item=row();item.setTag("source_item_"+source.id);item.setPadding(dp(4),dp(16),dp(4),dp(16));item.setMinimumHeight(dp(96));item.setBackground(Ui.touch(this,BG,0,8));item.setFocusable(true);
+            LinearLayout copy=col();copy.addView(bold(source.name,16,INK));space(copy,7);TextView words=text("키워드 · "+String.join(" OR ",source.keywords),12,Ui.SECONDARY);words.setMaxLines(2);words.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(words);space(copy,6);copy.addView(text("마지막 성공 · "+(source.lastSuccess==0?"아직 없음":date(source.lastSuccess)),11,MUTED));item.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+            ImageView arrow=Ui.icon(this,"arrow",Ui.MUTED);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(16),dp(16));ap.leftMargin=dp(12);item.addView(arrow,ap);item.setOnClickListener(v->sourceDetail(source.id));sourceList.addView(item);Ui.divider(this,sourceList);
         }
-        if(store.sources().isEmpty())screen.addView(text("확인하고 싶은 학교나 교육청의 채용 게시판을 추가해 주세요.",14,Ui.SECONDARY));
+        if(found.isEmpty()){space(sourceList,28);TextView empty=text(store.sources().isEmpty()?"확인할 학교나 교육청의 게시판을 추가해 주세요.":"조건에 맞는 게시판이 없어요.\n검색어나 지역 필터를 바꿔보세요.",14,Ui.SECONDARY);empty.setGravity(Gravity.CENTER);sourceList.addView(empty);}
+    }
+    private void sourceRegionDialog(){
+        Set<String> draft=new LinkedHashSet<>(sourceRegions);LinearLayout form=col();form.setPadding(dp(24),dp(8),dp(24),dp(8));List<CheckBox> checks=new ArrayList<>();
+        for(String region:REGIONS){CheckBox check=new CheckBox(this);check.setText(region);check.setTag("source_filter_"+region);check.setMinHeight(dp(48));Ui.tint(check);check.setChecked(draft.contains(region));check.setOnCheckedChangeListener((view,on)->{if(on)draft.add(region);else draft.remove(region);});form.addView(check);checks.add(check);}
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("게시판 지역 필터").setView(form).setPositiveButton("적용",(d,w)->{sourceRegions=new LinkedHashSet<>(draft);prefs.edit().putStringSet("sourceRegions",new LinkedHashSet<>(sourceRegions)).apply();drawSources();}).setNegativeButton("취소",null).setNeutralButton("전체 선택",null).create();
+        sourceRegionPicker=dialog;dialog.setOnDismissListener(d->sourceRegionPicker=null);dialog.setOnShowListener(d->{dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTag("source_region_apply");dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{for(CheckBox check:checks)check.setChecked(true);});});dialog.show();
+    }
+    private void sourceDetail(String id){
+        Source source=store.source(id);if(source==null)return;LinearLayout form=col();form.setPadding(dp(24),dp(8),dp(24),dp(16));form.addView(text(source.region,12,MUTED));space(form,14);form.addView(bold("수집 키워드",12,Ui.SECONDARY));space(form,7);form.addView(text(String.join(" OR ",source.keywords),14,INK));space(form,16);
+        Switch enabled=toggleRow(form,"자동 확인","",source.enabled);enabled.setTag("source_enabled_"+source.id);enabled.setOnCheckedChangeListener((button,on)->{Source fresh=store.source(id);if(fresh==null)return;fresh.enabled=on;store.putSource(fresh);drawSources();});space(form,10);
+        LinearLayout state=col();state.setPadding(dp(12),dp(12),dp(12),dp(12));state.setBackground(shape(Ui.FILL,0));state.addView(text(source.message,12,source.message.startsWith("확인 실패")||source.message.startsWith("일부")?AMBER:Ui.SECONDARY));space(state,6);state.addView(text("마지막 성공 · "+(source.lastSuccess==0?"아직 없음":date(source.lastSuccess)),11,MUTED));form.addView(state);space(form,12);
+        ScrollView scroll=new ScrollView(this);scroll.addView(form);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(source.name).setView(scroll).setPositiveButton("닫기",null).create();sourceDetails=dialog;dialog.setOnDismissListener(d->sourceDetails=null);
+        actionRow(form,"원문 보기","","",()->{dialog.dismiss();Source fresh=store.source(id);if(fresh!=null)open(fresh.url);});
+        actionRow(form,"수정","","",()->{dialog.dismiss();Source fresh=store.source(id);if(fresh!=null)editSource(fresh);});form.getChildAt(form.getChildCount()-1).setTag("edit_source_"+id);
+        actionRow(form,"게시판 연결 진단","","info",()->{dialog.dismiss();Source fresh=store.source(id);if(fresh!=null)startActivity(new Intent(this,InspectActivity.class).putExtra("url",fresh.url));});
+        actionRow(form,"게시판 삭제","","",()->new AlertDialog.Builder(this).setTitle("게시판을 삭제할까요?").setMessage("이 게시판의 자동 확인을 중지해요. 저장한 관심 공고는 남아요.").setPositiveButton("삭제",(d,w)->{store.removeSource(id);dialog.dismiss();drawSources();}).setNegativeButton("취소",null).show());
+        dialog.show();dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTag("source_detail_close");
     }
     private EditText input(LinearLayout into,String label,String value){into.addView(bold(label,12,Ui.SECONDARY));space(into,8);EditText e=new EditText(this);e.setHint(label);e.setText(value);e.setTextSize(14);e.setTextColor(INK);e.setHintTextColor(MUTED);e.setSingleLine(true);e.setPadding(dp(14),dp(15),dp(14),dp(15));e.setBackground(shape(Ui.FILL,0));into.addView(e,new LinearLayout.LayoutParams(-1,-2));space(into,18);return e;}
     private void editSource(Source previous){
@@ -216,7 +242,7 @@ public class MainActivity extends Activity {
         actionRow(a,"알림 허용·설정","","",this::requestAlerts);Ui.divider(this,a);actionRow(a,"테스트 알림 보내기","","",()->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestAlerts();return;}SyncEngine.testNotification(this);toast("휴대폰 알림창을 확인해 주세요");});Ui.divider(this,a);actionRow(a,"배터리 설정","","",()->{try{startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}catch(Exception e){openAppSettings();}});
         LinearLayout data=card(screen);sectionTitle(data,"데이터 관리","download");actionRow(data,"백업 파일 저장","","download",()->documentIntent(true));Ui.divider(this,data);actionRow(data,"백업 가져오기","","upload",()->documentIntent(false));Ui.divider(this,data);actionRow(data,"진단 내용 복사","","info",()->{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("교원 채용공고 알리미 진단",diagnostics()));toast("진단 내용을 복사했어요");});
         if(!prefs.getString("storageError","").trim().isEmpty()){space(data,10);data.addView(text(prefs.getString("storageError",""),12,AMBER));}
-        space(screen,10);screen.addView(text("공고와 읽어 온 본문은 이 휴대폰에 저장돼요.\n각 게시판에서 설정한 키워드로 제목을 확인해요. 서울·경기 교육청은 직무분야·과목에 ‘역사’가 있는 공고도 수집해요.\n게시일이 작년 1월 1일~올해 12월 31일인 글만 표시하며, 게시일을 확인할 수 없는 글은 제외해요.\n학교 게시판은 제목에 올해 또는 다음해 학년도(예: 2026학년도, 2027학년도)가 있어야 해요. 서울·경기 교육청 채용 게시판은 이 조건에서 제외돼요.\n첨부파일과 지원 자격은 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.13",11,MUTED));
+        space(screen,10);screen.addView(text("공고와 읽어 온 본문은 이 휴대폰에 저장돼요.\n각 게시판에서 설정한 키워드로 제목을 확인해요. 서울·경기 교육청은 직무분야·과목에 ‘역사’가 있는 공고도 수집해요.\n게시일이 작년 1월 1일~올해 12월 31일인 글만 표시하며, 게시일을 확인할 수 없는 글은 제외해요.\n학교 게시판은 제목에 올해 또는 다음해 학년도(예: 2026학년도, 2027학년도)가 있어야 해요. 서울·경기 교육청 채용 게시판은 이 조건에서 제외돼요.\n첨부파일과 지원 자격은 원문에서 확인해 주세요.",12,MUTED));space(screen,18);screen.addView(text("교원 채용공고 알리미 · 0.1.14",11,MUTED));
     }
     private void documentIntent(boolean export){Intent i=new Intent(export?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");if(export)i.putExtra(Intent.EXTRA_TITLE,"history-jobs-backup.json");try{startActivityForResult(i,export?201:202);}catch(Exception e){toast("파일 선택 앱을 열지 못했어요");}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;Uri uri=data.getData();
@@ -230,5 +256,5 @@ public class MainActivity extends Activity {
     private void open(String raw){String safe=Html.resolve(raw,raw);if(safe.trim().isEmpty()){toast("열 수 없는 주소예요");return;}try{if(kr.personal.historyjobs.core.GoyangBoard.supports(safe))startActivity(new Intent(this,InspectActivity.class).putExtra("url",safe).putExtra("original",true));else startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(safe)));}catch(Exception e){toast("주소를 열 앱이 없어요");}}
     private String date(long t){return Instant.ofEpochMilli(t).atZone(Classifier.KST).format(DateTimeFormatter.ofPattern("MM.dd HH:mm",Locale.KOREA));}
     private void toast(String msg){Toast.makeText(this,msg,Toast.LENGTH_LONG).show();}
-    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.13\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
+    private String diagnostics(){StringBuilder b=new StringBuilder("교원 채용공고 알리미 0.1.14\nAndroid "+Build.VERSION.RELEASE+" / "+Build.MANUFACTURER+" "+Build.MODEL+"\n");b.append("자동 확인: ").append(prefs.getBoolean("automatic",true)).append("\n");for(Source s:store.sources())b.append("\n").append(s.name).append(" / ").append(s.enabled?"켜짐":"꺼짐").append("\n").append(s.url).append("\n").append(s.message).append("\n마지막 성공 ").append(s.lastSuccess==0?"없음":date(s.lastSuccess)).append('\n');return b.toString();}
 }

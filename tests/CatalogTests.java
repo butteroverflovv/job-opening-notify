@@ -50,6 +50,6 @@ public final class CatalogTests {
         String aspNav="<a href='notice_read.asp?idx=42&lv1=42&lv3=0&page=1'>2026학년도 채용 공고</a><table><tr><td><a href='notice_read.asp?page=1&idx=43&lv1=43&lv3=0'>2026학년도 채용 공고</a></td><td>2026.11.20</td></tr></table>";
         ok(BoardParser.listing(gc,gc.url,aspNav).items().size()==1,"ASP summary navigation not mistaken for undated list records");
         ok(ArticleReader.parse("https://www.gcfl.or.kr/notification/notice_read.asp?idx=43","<table width='675' cellspacing='0'><tr><td>첨부파일 목록</td></tr></table><table width='675' cellspacing='10'><tr><td height='16'>채용 공고 본문</td></tr></table><iframe src='/include/comment.asp'></iframe>").body().equals("채용 공고 본문"),"legacy ASP body cell selected without attachments or comments");
-        ok(Model.defaults().size()==19&&Model.defaults().get(2).id.equals("tokyo"),"catalog appended without replacing existing source identifiers");
+        ok(Model.defaults().size()==25&&Model.defaults().get(2).id.equals("tokyo"),"catalog appended without replacing existing source identifiers");
     }
 }

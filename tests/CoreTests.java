@@ -99,6 +99,7 @@ public class CoreTests {
         PortalTests.run();
         CatalogTests.run();
         GoyangTests.run();
+        InternationalTests.run();
         System.out.println("\n"+passed+" checks passed");
     }
     static void collectorTests(String list)throws Exception{

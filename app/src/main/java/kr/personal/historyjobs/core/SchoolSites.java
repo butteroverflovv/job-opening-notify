@@ -12,7 +12,7 @@ public final class SchoolSites {
     public static String kind(String url){
         var q=SchoolBoards.query(url);String p=path(url);
         if(q.getOrDefault("act","").matches("board\\.(?:list|read)")||q.getOrDefault("act","").equals("news.main")&&q.containsKey("comm"))return "SCHOOL_ACT";
-        if(p.endsWith("/bbs/board.php")&&q.getOrDefault("bo_table","").matches("[A-Za-z0-9_]{1,50}")||host(url).equals("ewha-gfh.hs.kr")&&p.matches("/0201(?:/[0-9]+)?/?"))return "SCHOOL_GNU";
+        if(p.endsWith("/bbs/board.php")&&q.getOrDefault("bo_table","").matches("[A-Za-z0-9_]{1,50}")||(host(url).equals("ewha-gfh.hs.kr")&&p.matches("/0201(?:/[0-9]+)?/?")||host(url).equals("dtg.hs.kr")&&p.matches("/030101(?:/[0-9]+)?/?")))return "SCHOOL_GNU";
         if(host(url).equals("gcfl.or.kr")&&p.matches("/notification/notice(?:_read)?\\.asp"))return "SCHOOL_ASP";
         return "";
     }
