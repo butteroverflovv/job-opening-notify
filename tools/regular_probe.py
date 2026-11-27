@@ -15,3 +15,6 @@ def get(key,url):
 g=get('goe',base);get('sen-regular',sen)
 for i,src in enumerate(re.findall(r'<script[^>]*src=[\'"]([^\'"]+)',g,re.I)):
  if any(x in src.lower() for x in ['pbanc','hnfp','recruit']):get('script'+str(i),urllib.parse.urljoin(base,src))
+
+get('goe-regular',"https://www.goe.go.kr/recruit/ad/func/pb/hnfpPbancList.do?mi=10502&srchOcptCd=D&srchOcptNm=%EC%82%AC%EB%A6%BD%ED%95%99%EA%B5%90%20%EA%B5%90%EC%9B%90%EC%A0%95%EA%B7%9C%EC%B1%84%EC%9A%A9&srchEcptDl=N&currPage=1")
+get('sen-regular-full',"https://work.sen.go.kr/work/search/recInfo/BD_selectSrchRecInfo.do?jobType=jd001&jobCategory=jd001001&jobDuty=jd001001002&q_srchType=rcrtTtl&q_srchText=&q_currPage=1&q_rowPerPage=15&q_srchArea=&q_srchSchl=&q_tabId=&q_sortBy=regDt&q_mySrchArea=&q_srchJob=jd001%2C%EC%A0%95%EA%B7%9C%EA%B5%90%EC%9B%90%2Cjd001001%2C%EB%B3%B4%ED%86%B5%EA%B5%90%EA%B3%BC%2Cjd001001002%2C%EB%8F%84%EB%8D%95%EC%82%AC%ED%9A%8C%EA%B3%BC&q_recClosed=closed&q_today=&q_jobCategory=")
