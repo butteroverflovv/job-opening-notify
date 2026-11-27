@@ -60,7 +60,7 @@ public final class ArticleReader {
         List<String> frames=new ArrayList<>();Html.Node scope=chosen==null?root:chosen;
         for(Html.Node n:scope.all())if(n.tag.equals("iframe")&&!suppressed(n)){
             String u=Html.resolve(url,n.attr("src")),hint=(u+" "+n.attr("id")+" "+n.attr("class")).toLowerCase(Locale.ROOT);
-            if(!u.isEmpty()&&Html.sameHost(url,u)&&!isFileUrl(u)&&!hint.matches(".*(?:preview|viewer|file|map|video|youtube).*"))frames.add(u);
+            if(!u.isEmpty()&&Html.sameHost(url,u)&&!isFileUrl(u)&&!hint.matches(".*(?:preview|viewer|file|map|video|youtube|comment|reply).*"))frames.add(u);
         }
         if(chosen==null)return new Part("",frames,false);
         StringBuilder b=new StringBuilder();boolean[] image={false};append(chosen,b,image);
