@@ -14,7 +14,7 @@ public final class Collector {
         LocalDate today=java.time.Instant.ofEpochMilli(now).atZone(Classifier.KST).toLocalDate();
         ArrayDeque<String> queue=new ArrayDeque<>();queue.add(source.url);
         Set<String> visited=new HashSet<>(),bodies=new HashSet<>();LinkedHashMap<String,Link> listings=new LinkedHashMap<>();
-        List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;long stopAt=System.nanoTime()+35_000_000_000L;
+        List<String> errors=new ArrayList<>();int pages=0;boolean partial=false;long budget=BoardParser.kind(source).equals("SCHOOL_SEN")?90_000_000_000L:35_000_000_000L;long stopAt=System.nanoTime()+budget;
         int pageLimit=BoardParser.kind(source).equals("SCHOOL_ASP")?80:20;
         while(!queue.isEmpty()&&pages<pageLimit&&System.nanoTime()<stopAt&&!Thread.currentThread().isInterrupted()){
             String page=queue.remove();if(!visited.add(page))continue;
