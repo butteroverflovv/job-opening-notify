@@ -31,6 +31,7 @@ public final class PortalTests {
         ok(!Classifier.matches(sen,unrelated.title(),unrelated.duty()),"unlabeled list prose containing history is excluded");
         ok(SchoolBoards.query(goe.url).get("srchOcptCd").equals("D")&&!goe.url.equals(Model.defaults().get(1).url),"Gyeonggi regular registration has distinct D category query");
         ok(SchoolBoards.query(sen.url).get("q_srchJob").startsWith("jd001,")&&SchoolBoards.query(sen.url).get("jobDuty").equals("jd001001002"),"Seoul regular request preserves full selected social-studies category");
+        ok(Selection.pageNumber(goe,goe.url)==1&&Selection.pageNumber(goe,BoardParser.query(goe.url,"currPage","2"))==2,"Gyeonggi pageIndex is row count, currPage is actual page number");
         for(Source source:List.of(sen,goe)){
             String next=BoardParser.query(source.url,SchoolBoards.pageKey(source),"2");
             ok(Model.recruitmentCategory(source.url).equals(Model.recruitmentCategory(next)),"regular category retained when paging: "+source.id);

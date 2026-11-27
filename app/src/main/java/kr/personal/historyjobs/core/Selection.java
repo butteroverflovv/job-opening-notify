@@ -66,7 +66,9 @@ public final class Selection {
     public static int pageNumber(Source s,String url){
         if(BoardParser.kind(s).equals("TOKYO"))return tokyoPage(url);
         String key=SchoolBoards.pageKey(s);
-        for(var e:SchoolBoards.query(url).entrySet())if(e.getKey().equalsIgnoreCase(key)||e.getKey().matches("(?i)page|pageIndex|pageNum|pageNo|currPage|q_currPage"))try{return Integer.parseInt(e.getValue());}catch(NumberFormatException ignored){}
+        var values=SchoolBoards.query(url);
+        for(var e:values.entrySet())if(e.getKey().equalsIgnoreCase(key))try{return Integer.parseInt(e.getValue());}catch(NumberFormatException ignored){}
+        if(BoardParser.kind(s).equals("GENERIC"))for(var e:values.entrySet())if(e.getKey().matches("(?i)page|pageIndex|pageNum|pageNo|currPage|q_currPage"))try{return Integer.parseInt(e.getValue());}catch(NumberFormatException ignored){}
         return 1;
     }
     public static List<String> nextPages(Source s,String current,List<String> pages){
